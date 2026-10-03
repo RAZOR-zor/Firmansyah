@@ -1,5 +1,26 @@
 # Berkas yang tidak perlu ikut ke server.
 #
+# `package.json` - PENTING, dan ini alasannya.
+#
+# Berkas itu HANYA untuk `npm start` lokal: `server.mjs` statis tanpa
+# dependency. Situsnya sendiri tidak butuh build sama sekali - HTML,
+# CSS, dan JS-nya sudah siap pakai.
+#
+# Selama `package.json` ikut ter-deploy, Vercel mendeteksi proyek ini
+# sebagai aplikasi Node dan mencoba membuat serverless function -
+# padahal tidak ada folder `api/`, tidak ada field `main`, dan tidak
+# ada handler server. Build-nya gagal.
+#
+# Menyingkirkan berkas ini membuat Vercel melihat proyek tanpa
+# framework dan tanpa build command, lalu menyajikan folder root
+# sebagai situs statis. persis seperti yang README menjelaskan.
+#
+# Konsekuensinya build step Vercel jadi tidak ada sama sekali -
+# artinya `build: node --version` yang dulu ada di `package.json` juga
+# tidak pernah dijalankan, dan pesan "missing script: build" pun tidak
+# mungkin muncul.
+package.json
+
 # `background/` berisi clip sumber 440 KB yang tidak dirujuk halaman
 # mana pun, jadi tidak ada yang hilang dengan tidak ikut ke deploy. Sudah
 # masuk `.gitignore` juga, jadi repo tidak perlu memegangnya dua kali.
