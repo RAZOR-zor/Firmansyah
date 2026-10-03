@@ -93,8 +93,8 @@ package.json                Hanya untuk `npm start` (nol dependency)
 server.mjs                  Static server pengembangan, tanpa dependency
 vercel.json                 Header cache & keamanan
 robots.txt · sitemap.xml · .gitignore
-favicon.svg
-assets/fonts/               Archivo & JetBrains Mono (self-host, subset latin)src/
+assets/fonts/               Archivo & JetBrains Mono (self-host, subset latin)
+src/
   styles/
     main.css                Titik masuk
     tokens.css              Warna, tipografi, spasi, motion, layout
