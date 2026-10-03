@@ -1,0 +1,22 @@
+node_modules/
+.vercel/
+.DS_Store
+Thumbs.db
+*.log
+
+# Alat lokal, bukan bagian dari situs.
+.freebuff/
+
+# Sertifikat asli, resolusi penuh. Yang masuk repo hanya versi yang sudah
+# dikompres + diberi watermark di `assets/certificates/`.
+sertifikat/
+
+# Berkas yang tidak dirujuk halaman mana pun. Semuanya tetap ada di disk,
+# hanya tidak ikut ke repo.
+#
+# `--selector`           PNG 15 KB dari download nyasar, bukan file selector
+# `background/`          clip sumber 440 KB, tidak dipakai hero
+# `font/Pally-Bold.otf`  tidak dipakai; font situs ada di `assets/fonts/`
+--selector
+background/
+font/Pally-Bold.otf

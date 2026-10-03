@@ -1,0 +1,83 @@
+/* =============================================================
+   LAYOUT — grid, container, section shell
+   Desktop 12 kolom · Tablet 8 kolom · Mobile 4 kolom
+   ============================================================= */
+
+/* Lebar rail sudah diakomodasi oleh `padding-left` pada <body>, karena
+   rail-nya `position: fixed`. Kalau rail-w ikut ditambahkan di sini lagi,
+   jaraknya terhitung dua kali dan konten terdorong jauh ke kanan. */
+.container {
+  width: 100%;
+  max-width: 112rem;              /* 1792px — di 1920px tersisa margin simetris */
+  margin-inline: auto;
+  padding-inline: var(--gutter);
+}
+
+.section {
+  position: relative;
+  padding-block: var(--section-y);
+  /* Garis rambut horizontal sebagai pemisah antar section */
+  border-top: 1px solid var(--rule);
+}
+.section:first-of-type { border-top: 0; }
+
+/* — Eyebrow / label kecil — */
+.eyebrow {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-family: var(--font-mono);
+  font-size: var(--fs-eyebrow);
+  font-weight: 400;
+  letter-spacing: var(--tr-eyebrow);
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+
+/* — Judul section — */
+.section-head { margin-bottom: clamp(2.5rem, 6vh, 4.5rem); }
+.section-head .eyebrow { margin-bottom: var(--sp-4); }
+
+.section-title {
+  font-size: var(--fs-h2);
+  font-weight: 500;
+  line-height: var(--lh-tight);
+  max-width: 18ch;
+}
+
+.section-note {
+  margin-top: var(--sp-4);
+  max-width: 46ch;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-body);
+  color: var(--ink-2);
+}
+
+/* Varian: judul di kiri, catatan di kanan — asimetri sadar */
+@media (min-width: 900px) {
+  .section-head--split {
+    display: grid;
+    grid-template-columns: repeat(12, 1fr);
+    align-items: end;
+    gap: var(--gutter);
+  }
+  .section-head--split > :first-child { grid-column: 1 / span 7; }
+  .section-head--split .section-note {
+    grid-column: 9 / -1;
+    margin-bottom: 0.5rem;
+  }
+}
+
+/* — Grid utilitas 12/8/4 — */
+.grid-12 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--gutter); }
+@media (min-width: 700px)  { .grid-12 { grid-template-columns: repeat(8, minmax(0, 1fr)); } }
+@media (min-width: 1024px) { .grid-12 { grid-template-columns: repeat(12, minmax(0, 1fr)); } }
+
+/* — Divider — */
+.rule {
+  width: 100%;
+  height: 1px;
+  background-color: var(--rule);
+  border: 0;
+  transform-origin: left center;
+}

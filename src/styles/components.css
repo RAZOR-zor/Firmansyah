@@ -1,0 +1,2260 @@
+/* =============================================================
+   COMPONENTS
+   ============================================================= */
+
+/* ─────────────── LAYAR MUAT ───────────────
+   "Print sheet": lembar kerja cetak yang sedang disiapkan sebelum
+   dicetak. Empat registration mark menahan keempat sudut, wordmark
+   diset huruf demi huruf, dan satu garis rambut jadi baseline tempat
+   progres berjalan.
+
+   Tampil sebelum animasi, hilang setelah. Animasi utama digsambar GSAP,
+   tapi `loader-failsafe` berikut berdiri sendiri sebagai jaring pengaman:
+   kalau JavaScript tidak pernah jalan (gagal dimuat, diblokir, error),
+   layar ini tetap hilang sendiri setelah 3,2 detik. Tanpa itu, satu
+   kegagalan JS akan membuat seluruh situs tidak bisa dibuka.
+
+   Satu hal dipindah dari CSS ke JavaScript: `armLoader()` mematikan
+   animasi jaring pengaman sekaligus sterilkan latar `.loader`. Dari
+   titik itu onward, kertas yang bergerak adalah `.loader__sheet`, bukan
+   `.loader` — jadi `.loader` sendiri boleh tetap diam di tempat
+   sebagai panggung.
+
+   Blok kontennya sengaja rata kiri dan duduk di gutter yang sama dengan
+   halaman, persis di sebelah dalam rail. Begitu lembarnya menyingkir
+   tidak ada lompatan posisi: situs ini asimetris-kiri, dan layar muat
+   yang rata tengah akan terasa seperti splash generik. */
+.loader {
+  --mark-inset: 7px;
+
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-loader);
+  background-color: var(--paper);
+  overflow: hidden;
+  animation: loader-failsafe 3.2s linear forwards;
+}
+
+/* ── Registration mark ───────────────────────────────────────
+   Tanda potong cetakan: dua lengan 1px yang membentuk huruf L di
+   setiap sudut.
+
+   Lengan horizontal dan vertikal sengaja dipisah jadi dua elemen,
+   bukan satu kotak dengan `border`, supaya masing-masing bisa tumbuh
+   dengan `scaleX` / `scaleY` dari `transform-origin` yang benar.
+   Kalau dipaksa lewat `clip-path`, kita harus menginterpolasi string
+   `inset()` per frame — dan `clip-path` juga memaksa repaint, sementara
+   scale cukup untuk satu compositor.
+
+   `transform-origin` di bawah menunjuk sudut yang dituju: lengan
+   tumbuh dari ujung luarnya ke arah sudut, seperti tanda potong yang
+   sedang digambar.
+
+   Posisi keempat mark memakai `gutter + mark-inset`, bukan `gutter`
+   polos. Guide vertikal sudah pindah ke `gutter` (lihat
+   `.loader__guides`), jadi kalau mark juga duduk di `gutter`, lengan
+   vertikalnya jatuh TEPAT di garis itu. Akibatnya huruf L-nya hilang:
+   satu lengannya tenggelam ke dalam guide, dan yang tersisa hanya
+   siku kecil yang tidak terbaca sebagai tanda potong.
+
+   `mark-inset` cukup 7px - cukup untuk memisahkan dua garis 1px supaya
+   keduanya terbaca, dan cukup kecil supaya mark tetap terbaca
+   sebagai tanda di sudut lembar. */
+.loader__mark {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  pointer-events: none;
+}
+.loader__mark > span {
+  position: absolute;
+  display: block;
+  background-color: var(--rule-strong);
+}
+.loader__mark > span:first-child { width: 100%; height: 1px; }
+.loader__mark > span:last-child  { width: 1px; height: 100%; }
+
+.loader__mark--tl { top: calc(var(--gutter) + var(--mark-inset)); left: calc(var(--gutter) + var(--mark-inset)); }
+.loader__mark--tr { top: calc(var(--gutter) + var(--mark-inset)); right: calc(var(--gutter) + var(--mark-inset)); }
+.loader__mark--bl { bottom: calc(var(--gutter) + var(--mark-inset)); left: calc(var(--gutter) + var(--mark-inset)); }
+.loader__mark--br { bottom: calc(var(--gutter) + var(--mark-inset)); right: calc(var(--gutter) + var(--mark-inset)); }
+
+.loader__mark--tl > span:first-child { top: 0; left: 0; transform-origin: left center; }
+.loader__mark--tl > span:last-child  { top: 0; left: 0; transform-origin: center top; }
+.loader__mark--tr > span:first-child { top: 0; right: 0; transform-origin: right center; }
+.loader__mark--tr > span:last-child  { top: 0; right: 0; transform-origin: center top; }
+.loader__mark--bl > span:first-child { bottom: 0; left: 0; transform-origin: left center; }
+.loader__mark--bl > span:last-child  { bottom: 0; left: 0; transform-origin: center bottom; }
+.loader__mark--br > span:first-child { bottom: 0; right: 0; transform-origin: right center; }
+.loader__mark--br > span:last-child  { bottom: 0; right: 0; transform-origin: center bottom; }
+
+/* ── Lembar ──────────────────────────────────────────────────
+   Kertasnya dipisah dari `.loader` karena saat keluar, lembar inilah
+   yang menggeser — `.loader` tetap diam sebagai panggung. */
+.loader__sheet {
+  position: absolute;
+  inset: 0;
+  background-color: var(--paper);
+  will-change: transform;
+}
+
+/* ── Blok konten, menempel di dasar lembar.
+
+   Padding bawahnya `+ var(--sp-7)` supaya blok tidak menempel di tepi
+   bawah, dan `--rail-w` menambah margin kiri supaya isinya mulai tepat
+   setelah rail. Tanpa itu, di layar 1024px ke atas isinya akan mulai
+   di bawah rail dan posisinya meleset dari halaman. */
+.loader__foot {
+  position: absolute;
+
+  /* Batas kiri `rail-w` saja, lalu `gutter` masuk lewat `padding-inline`.
+     Menulis `left: calc(gutter + rail-w)` memberi hasil yang sama di
+     bawah 1920px, tapi meleset 64px di atas itu, karena `max-width`
+     lalu ikut menghitung gutter. */
+  left: var(--rail-w);
+  right: 0;
+  max-width: 112rem;
+  margin-inline: auto;
+  padding-inline: var(--gutter);
+
+  bottom: calc(var(--gutter) + var(--sp-7));
+}
+
+/* ── Readout ─────────────────────────────────────────────────
+   Baris mono di atas wordmark: tahap ke berapa dari berapa, dan apa
+   yang sedang dikerjakan. Ini satu-satunya bagian loader yang isinya
+   berubah-ubah, dan itu disengaja — dialah yang membuat layar ini
+   terbaca sebagai mesin yang bekerja, bukan sebagai animasi.
+
+   Tiga nada, bukan satu: nomor langkah `--ink-2` (terbaca, tapi tidak
+   bersaing dengan wordmark), penyebut `/ 05` `--rule-strong`
+   (struktur), dan labelnya `--ink-3` (paling sunyi). */
+.loader__status {
+  display: flex;
+  align-items: center;
+  font-family: var(--font-mono);
+  font-size: var(--fs-eyebrow);
+  letter-spacing: var(--tr-eyebrow);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.loader__status-step {
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+.loader__status-of {
+  margin-left: 0.4em;
+  color: var(--rule-strong);
+  font-variant-numeric: tabular-nums;
+}
+/* Pembatas vertikal 1px. Harus `flex: 0 0 auto`, kalau tidak ia ikut
+   memendek dan penyebutnya jadi "/0 5". */
+.loader__status-rule {
+  flex: 0 0 auto;
+  width: 1px;
+  height: 1.1em;
+  margin-inline: 0.85em;
+  background-color: var(--rule);
+}
+.loader__status-label { color: var(--ink-3); }
+
+/* ── Wordmark ────────────────────────────────────────────────
+   `overflow: clip` + `translateY` = tiap huruf tersembunyi di belakang
+   barisnya, lalu naik ke tempat. `line-height: 1.16` memberi ruang
+   untuk huruf turun ('y' di "Firmansyah") supaya tidak terpotong.
+
+   Hurufnya `inline-block` supaya bisa digeser sendiri-sendiri.
+   Kalau dibiarkan `inline`, transform tidak berlaku pada kotak inline
+   dan seluruh kata bergerak sebagai satu blok.
+
+   `margin-bottom` negatif memakai ruang descender yang sudah disisakan
+   `line-height` untuk menarik rule naik ke bawah huruf. Jaraknya jadi
+   ikut ukuran huruf di semua lebar layar, bukan angka tetap — dan
+   rule ini harus duduk sebagai baseline, bukan sekadar garis yang
+   kebetulan ada di bawah wordmark. */
+.loader__word {
+  margin-top: clamp(1.5rem, 4vh, 2.25rem);
+  font-size: clamp(2.5rem, 9vw, 5.25rem);
+  font-weight: 500;
+  line-height: 1.16;
+  letter-spacing: var(--tr-display);
+  color: var(--ink);
+}
+.loader__word-line {
+  display: block;
+  overflow: clip;
+  margin-bottom: -0.06em;
+}
+.loader__word-line > span {
+  display: inline-block;
+  will-change: transform;
+}
+
+/* ── Baseline + progres ─────────────────────────────────────
+   Track 1px, isian aksen 2px menindihnya persis di tengah.
+
+   Tinggi keduanya sengaja BEDA, dan itu bukan ketidaktelitianan: track
+   adalah garis, fill adalah pena yang menandainya. Kalau keduanya 1px,
+   di layar gelap keduanya cuma satu garis yang berubah warna, dan
+   pertanyaan "sudah penuh atau belum" jadi tidak punya jawaban yang
+   bisa dipegang.
+
+   Angka persen di ujung kanan bar dipertahankan, dan alasannya sama
+   seperti sebelumnya: tanpa angka, track kosong dan track penuh
+   nyaris tidak bisa dibedakan, jadi tidak ada cara lain untuk tahu muat
+   sudah selesai atau belum.
+
+   `width: 4ch` + `tnum` + rata kanan: ruangnya sudah dipesan selebar
+   "100%" sejak frame pertama, jadi ujung kanan bar tidak bergerak
+   sedikit pun saat angka naik dari "9%" ke "100%". Bar yang bergeser
+   sambil diukur adalah bar yang tidak bisa diukur. */
+.loader__rule {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  margin-top: clamp(0.5rem, 1.5vh, 0.875rem);
+  /* Angka persen menyingkir 4px dari guide kanan. Tepi konten dan
+     guide ada di posisi yang sama, jadi tanpa ini garisnya memotong
+     digit terakhir - masalah yang sama seperti yang menimpa mark.
+     4px cukup untuk melepas, dan karena track-nya ikut memendek
+     4px saja, yang tidak terbaca.
+     */
+  margin-right: 4px;
+}
+.loader__rule-track {
+  position: relative;
+  display: block;
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 1px;
+  background-color: var(--rule);
+}
+.loader__fill {
+  position: absolute;
+  top: -0.5px;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background-color: var(--accent);
+  transform: scaleX(0);
+  transform-origin: left center;
+  will-change: transform;
+}
+
+.loader__pct {
+  flex: 0 0 auto;
+  width: 4ch;
+  font-family: var(--font-mono);
+  font-size: var(--fs-eyebrow);
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  line-height: 1.3;
+  text-align: right;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+  transition: color var(--dur-base) var(--ease-soft);
+}
+/* Penuh: angkanya naik dari `--ink-3` ke `--ink`. Perubahan warna
+   inilah yang membuat "selesai" terasa sebagai peristiwa, bukan sekadar
+   bar yang kebetulan mentok. */
+.loader__rule.is-full .loader__pct { color: var(--ink); }
+
+/* ── Garis pandu ────────────────────────────────────────────
+   TIGA rambut vertikal dalam satu elemen: batas rail, lalu dua
+   batas kolom. Nol elemen tambahan - kalau ditulis sebagai elemen
+   terpisah, satu garis = satu elemen dan itu tiga kali kesempatan
+   layout tanpa guna untuk sesuatu yang tidak pernah bergerak.
+   Sebagai background-layer: satu kali paint, dan yang kiri-atas
+   otomatis ikut turun bersama lembarnya karena dipangkas oleh
+   transform lembar - bukan punya transform sendiri yang harus
+   dijaga sinkron.
+
+   HANYA yang vertikal. Versi pertama juga drew dua batas horizontal
+   area tipografi, dan itu salah: batas bawah melintas tepat
+   melalui wordmark dan readout, dan garis yang memotong teks
+   terbaca sebagai kesalahan merapikan, bukan sebagai guides. Kolom
+   vertikal aman karena tidak pernah berpotongan dengan apa pun -
+   konten loader semuanya menempel kiri dan bawah. */
+/* HANYA dua batas: tepi kiri area konten dan tepi kanannya.
+   Versi pertama menggambar lima, dan dua di antaranya (38% dan 72%)
+   dipersen dari lebar viewport - bukan dari layout apa pun. Akibatnya
+   keduanya memotong blok judul persis di dalamnya, dan garis yang
+   memotong konten terbaca sebagai kesalahan merapikan, bukan sebagai
+   guides. Guide yang berguna hanya batas yang memang ada; batas antara
+   kolom teks dan kolom dial sudah digambar oleh kolom kanannya sendiri.
+
+KEDUA garisnya sekarang persis di tepi lembar: `gutter` dan
+    `100% - gutter` - sama dengan tempat registration mark. Dan itu bukan
+    kebetulan, maknanya memang berubah. Sebelumnya guide kiri diletakkan
+    di `gutter + rail-w`, yaitu tepi konten, sementara mark ada di
+    `gutter`. Akibatnya ada DUA garis vertikal di sisi kiri (64 dan 192)
+    tapi hanya satu di kanan (1856) - jadi sisi kiri terbaca seperti
+    punya dua tepi, dan yang di kanan justru menabrak mark karena konten
+    juga berhenti di 1856.
+
+    Sekarang tiap sisi punya satu garis saja, dan garis itu menjadi
+    tulang punggung vertikal yang menyambung lengan atas dan bawah mark
+    di sudutnya. Setelah guide pindah ke `gutter`, konten di dalam
+    (bar, wordmark, dial) tidak boleh lagi berhenti persis di guide itu,
+    karena itu berarti menyentuhnya lagi - itu sebabnya dial dipusatkan
+    di kolomnya (lihat `.loader__frame-side`). */
+.loader__guides {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.75;
+  background-image:
+    linear-gradient(var(--rule) 0 0),
+    linear-gradient(var(--rule) 0 0);
+  background-repeat: no-repeat;
+  background-size: 1px 100%, 1px 100%;
+  background-position:
+    var(--gutter) 0,
+    calc(100% - var(--gutter)) 0;
+}
+
+/* ── Kerangka halaman (secondary) ───────────────────────────
+   Potongan layout yang muncul mengikuti kejadian muat yang sungguhan.
+
+   Bentuknya meniru grid hero ASLI, dan itu bukan hiasan metafora.
+   Di viewport 1264px, `.hero__main` selebar 673px di kiri dan
+   `.hero__motion` selebar 311px di kanan. Versi pertama memakai
+   blok selebar penuh untuk "hero" - padahal tidak ada elemen
+   seberang layar seperti itu di halaman sungguhan, dan hasilnya
+   langsung terbaca sebagai kumpulan persegi yang tidak menjelaskan
+   apa pun. Di layar lebar ia jadi strip tipis yang memanjang dari
+   kiri ke kanan tanpa alasan.
+
+Sekarang kolomnya benar-benar dua: teks di kiri, dial di kanan,
+   dengan pembatas kolom yang digambar oleh kolom kanan itu sendiri
+   (lihat `::before` di bawah) - jadi tidak ada persentase yang harus
+   dijaga agar tetap sinkron.
+
+   Dan sekarang dua kolom itu benar-benar memakai grid yang SAMA dengan
+   hero: `repeat(12, …)` dengan `main` di `1 / span 8` dan `side` di
+   `9 / -1` - persis `.grid-12` + `.hero__main` + `.hero__motion`.
+   Sebelumnya kolom teksnya `minmax(0, 1fr)`, yaitu "apa pun yang tersisa".
+   Itu benar hanya di 1264px (673px + 311px, cocok dengan hero), tapi di
+   1920px kolom `1fr` melar jadi 1312px sementara kolom kanan masih 304px
+   - jadi bar teksnya melewati tepi kolom teks hero yang asli sebesar
+   224px dan nyaris menyentuh kolom dial. Akar masalahnya bukan styling,
+   tapi kolom teksnya tidak pernah dikunci ke ukuran yang sama seperti
+   hero aslinya.
+
+   `max-width` + `margin-inline` meniru `.container`. Tanpa itu, di atas
+   1920px container ikut berhenti (112rem) sementara frame ini melar terus,
+   dan loader meleset 320px ke kiri dari halaman yang sedang disiapkan. */
+.loader__frame {
+  position: absolute;
+
+  /* DICERTAHKAN dari `.container`, sampai ke detail terkecil. `.container`
+     duduk di dalam `body { padding-left: rail-w }`, jadi kotaknya mulai
+     di `rail-w`, dan `padding-inline` yang menggeser konten ke `gutter`.
+     `max-width` + `margin-inline` harus dipakai BERSAMAAN - kalau
+     `max-width` tanpa padding, batas 112rem ikut menghitung gutter dan
+     frame melar 64px lebih dari container di setiap lebar. */
+  left: var(--rail-w);
+  right: 0;
+  max-width: 112rem;
+  margin-inline: auto;
+  padding-inline: var(--gutter);
+
+  top: calc(var(--gutter) + 2.5rem);
+  bottom: calc(var(--gutter) + 11rem);
+
+  /* Pita yang boleh dipakai oleh kolom TEKS. Kaki loader dicegah
+     seluruhnya karena status dan wordmark menempel di kiri. */
+  --band: calc(100vh - var(--gutter) * 2 - 13.5rem);
+  /* Ritme vertikal diturunkan dari pita, bukan ditebak. 13 pembagi =
+     5 jarak + 2 baris judul + sisa. Karena `min`, di viewport pendek
+     ritmenya ikut menyusut dan tidak pernah meluber ke kaki. */
+  --rhythm: min(2rem, calc(var(--band) / 13));
+
+  /* Anggaran TINGGI dial, bukan lebarnya. Lebar diambil dari lebar
+     kolomnya (lihat `.loader__frame-dial`), jadi angka ini hanya
+     PAGAR tinggi supaya dial tidak menabrak bar progres di bawah.
+     8rem hanya menyisakan ruang untuk bar progres. */
+  --dialh: calc(100vh - var(--gutter) * 2 - 8rem);
+
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: clamp(1rem, 3vw, 3rem);
+  align-content: start;
+  pointer-events: none;
+}
+/* Desktop saja. Di bawah 1024px hero asli tidak punya kolom kanan sama
+   sekali (`.hero__motion` disembunyikan) dan `.hero__main` jadi selebar
+   penuh, jadi loader ikut memakai `1fr auto` yang biasa di atas -
+   ukurannya tidak dijaga agar sama, memang tidak ada yang perlu
+   dicerminkan. */
+@media (min-width: 1024px) {
+  .loader__frame {
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    gap: var(--gutter);
+  }
+}
+/* Hidden sebelum JS, dan HANYA yang di-bind ke JS.
+   Selektor ini bukan `.loader__frame > *` - dan itu penting. Kolom
+   `main` dan `side` adalah anak langsung dari `.loader__frame` dan
+   tidak punya `data-frame-step`, jadi aturan yang terlalu luas akan
+   mengunci mereka di `opacity: 0`. Dan opacity 0 pada induk
+   menyembunyikan SELURUH subtree, tidak peduli seberapa pun anaknya:
+   semua elemen di dalam akan reported `opacity: 1` oleh
+   getComputedStyle sambil tetap tak terlihat. Itu persis yang terjadi
+   di versi pertama, dan mahal sekali untuk didiagnosis.
+
+   Sekarang aturannya mengikuti kontrak yang sama dengan yang dipakai
+   JS: persis elemen ber-`data-frame-step`. Kalau sebuah elemen tidak
+   diikat ke kejadian mana pun, ia tidak punya alasan untuk
+   disembunyikan. */
+.loader__frame [data-frame-step] { opacity: 0; }
+
+.loader__frame-main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--rhythm);
+  min-width: 0;
+}
+/* Dipasang hanya di desktop, karena hanya di sanalah grid 12 kolom
+   berlaku. Sama persis dengan `.hero__main`. */
+@media (min-width: 1024px) {
+  .loader__frame-main { grid-column: 1 / span 8; }
+}
+
+/* Pembatas kolom, digambar oleh kolom kanan agar selalu pas dengan
+   gridnya. Dipakai lewat offset `%` berarti batas kolom harus
+   dijaga manual saat lebar berubah; begini tidak ada angka yang bisa
+   basi.
+
+   `justify-content: center` yang penting di sini, bukan sekadar
+   "ada dua kolom". Kolom kanannya selebar 4 kolom (512px di 1920px)
+   tapi dial hanya ~304px. Tanpa `center`, dial menempel di tepi kanan
+   kolom - dan tepi kanan kolom itu BERHIMPIT dengan guide dan
+   registration mark, sehingga lingkaran terlihat tertimpa garis.
+   Dipusatkan, ada jarak 104px di kedua sisinya dan lingkaran berhenti
+   menyentuhnya. */
+.loader__frame-side {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+}
+.loader__frame-side::before {
+  content: '';
+  position: absolute;
+  top: -0.75rem;
+  bottom: -0.75rem;
+  left: calc(clamp(1rem, 3vw, 3rem) / -2);
+  width: 1px;
+  background-color: var(--rule);
+}
+@media (min-width: 1024px) {
+  .loader__frame-side { grid-column: 9 / -1; }
+  /* Guide di desktop sudah `gutter`, jadi نصف gap pun harus `gutter`.
+     Kalau tidak, batas kolom meleset 16px dan tidak lagi jatuh di
+     tengah jarak antara kolom 8 dan 9. */
+  .loader__frame-side::before { left: calc(var(--gutter) / -2); }
+}
+
+/* Bekasan dial. BULAT, bukan persegi, karena yang akan datang ke
+   layar ini memang lingkaran - jadi bentuknya sudah memberi tahu
+   orang apa yang sedang disiapkan tanpa perlu satu kata pun.
+
+   `inline-size` yang menentukan, bukan `height`. Urutan ini bukan gaya
+   penulisan: dengan lebar yang menentukan, `aspect-ratio` menurunkan
+   tinggi secara otomatis, sehingga `--dialh` bisa dipakai sebagai
+   BATASAN dalam `min()` - pagar, bukan penentu.
+
+   Dua anggota `min()` di bawah menutup dua batas yang berbeda:
+     19rem     ukuran yang enak dilihat di viewport lebar
+     --dialh   pagar tinggi supaya tidak menabrak bar progres
+
+   Pagar lebar terhadap lebar kolom ada di media query setelah blok ini,
+   bukan di sini - dan pemisahan itu bukan penataan yang tidak penting.
+   Dan karena yang menentukan adalah lebar, lingkaran ini tidak mungkin
+   jadi oval: `aspect-ratio` selalu dihormati selama tidak ada
+   `max-height` yang memaksa tingginya turun. */
+.loader__frame-dial {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: min(19rem, var(--dialh));
+  aspect-ratio: 1;
+  border: 1px solid var(--rule);
+  border-radius: 50%;
+  background-color: color-mix(in srgb, var(--rule) 6%, transparent);
+  transform-origin: center center;
+  will-change: transform, opacity;
+}
+/* Pagar jarak, dan HANYA di desktop. Kolomnya sudah jadi 4 kolom yang
+   eksplisit, jadi `80%` di sini aman: sisa 20% terbagi jadi 10% kiri
+   dan 10% kanan, sehingga ujung lingkaran tidak akan pernah menyentuh
+   guide maupun mark - termasuk di 1024-1280px, di mana kolom 4 kolom
+   hanya 244-316px.
+
+   Di bawah 1024px kolomnya `auto`, dan percentage di dalam
+   track `auto` itu merusak: browser memakainya sebagai alasan track
+   boleh memakan seluruh ruang, jadi kolom teksnya jadi 0px. Karena
+   itu aturan base TIDAK boleh memakai percentage - hanya panjang
+   tetap. */
+@media (min-width: 1024px) {
+  .loader__frame-dial { inline-size: min(19rem, 80%, var(--dialh)); }
+}
+
+/* Mark di dalam dial. `icon.png`, bukan `icon.svg`: yang SVG hasil trace
+   raster (VTracer) yang membawa latar krem ikut jadi path, sehingga di
+   loader gelap akan muncul kotak krem menyilaukan. Yang PNG benar-benar
+   transparan, jadi tidak ada warna yang perlu diatasi dan otomatis ikut
+   tema.
+
+   Percentage-nya lebih besar dari `icon.svg` sebelumnya (46% → 54%)
+   karena sekarang tidak ada kotak krem yang harus diakomodasi: yang ada
+   hanya mark-nya sendiri, dan mark yang kecil di tengah lingkaran besar
+   akan terbaca sebagai pihak ketiga, bukan pilihan. */
+.loader__frame-icon {
+  display: block;
+  width: 54%;
+  height: auto;
+}
+
+/* Mark-nya putih, jadi di loader tema terang dia nyaris hilang di atas
+   krem - hanya bentuk pucat yang samar. PNG-nya tidak bisa di-theme
+   (warnanya terkunci di dalam file), jadi yang bisa diubah cuma
+   respons filter-nya.
+
+   `invert(1) hue-rotate(180deg)` dipilih, bukan `invert(1)` saja:
+   invert polos membalik lightness sekaligus hue, sehingga titik merah
+   `#763131` jadi biru cyan `#89CECE` - dan titik itu justru bagian
+   paling dikenali dari mark ini. `hue-rotate(180deg)` mengembalikan
+   huedya, jadi glyph putih tetap jadi hitam sementara titiknya merah
+   kembali.
+
+   `brightness(0.68)` masih menyusul, karena `invert` juga membalik
+   lightness: merah gelap `#763131` keluar sebagai merah TERANG, yang
+   di tema terang justru bentrok dengan `--accent: #6E2E2E` yang gelap.
+   `saturate(1.5)` menjaga titik tetap terasa merah setelah digelapkan,
+   bukan jadi cokelat keruh. */
+[data-theme='light'] .loader__frame-icon {
+  filter: invert(1) hue-rotate(180deg) saturate(1.5) brightness(0.68);
+}
+
+/* Kotak bergaris tidak dipakai lagi: satu-satunya bentuk di hero asli
+   yang mendekati persegi kosong adalah kotak gambar, dan halaman ini
+   tidak punya gambar di hero. Kolom kiri semua baris teks, kolom kanan
+   satu lingkaran. */
+.loader__frame-block {
+  border: 1px solid var(--rule);
+  background-color: color-mix(in srgb, var(--rule) 8%, transparent);
+}
+
+.loader__frame-line {
+  height: 2px;
+  width: 100%;
+  background-color: color-mix(in srgb, var(--rule) 60%, transparent);
+  /* Melekat ke kiri, karena bar tumbuh dari arah kiri. Tanpa ini,
+     `scaleX` akan tumbuh ke dua arah dan terlihat seperti zoom. */
+  transform-origin: left center;
+  will-change: transform, opacity;
+}
+/* Kicker, judul dua baris, lalu paragraf. Semuanya BARIS, bukan
+   kotak bergaris, karena isi kolom ini di halaman sungguhan adalah
+   teks. Baris 6px untuk judul dan 2px untuk paragraf ikut meniru
+   hierarki yang asli: di situ ada `h1` besar dan ada paragraf kecil,
+   dan menyamakan keduanya membuat kolom terlihat seperti daftar,
+   bukan seperti blok teks. */
+.loader__frame-line--kicker { width: 20%; }
+.loader__frame-line--h1 {
+  width: 100%;
+  height: var(--rhythm);
+  background-color: color-mix(in srgb, var(--rule) 78%, transparent);
+}
+.loader__frame-line--h1b { width: 72%; }
+.loader__frame-line--mid { width: 58%; }
+.loader__frame-line--short { width: 32%; }
+
+/* ── Sapuan ambient ────────────────────────────────────────
+   Satu-satunya gerak looping di layar ini, dan sengaja dibuat
+   sangat lambat: 9 detik sekali turun-naik.
+
+   Kenapa loop-nya `infinite` dan bukan sekali: loader bisa tampil
+   jauh lebih lama dari 2,2 detik kalau jaringan lambat atau satu
+   aset telat. Kalau sapuannya sekali jalan, layar berubah jadi
+   diam persis di detik-detik paling membosankan - dan itulah kondisi
+   yang justru paling sering dilihat orang.
+
+   `cubic-bezier(0.4, 0, 0.2, 1)` + `alternate` = keluar-masuk yang
+   bolak-balik mulus, jadi satu siklus tidak punya titik yang terasa
+   seperti "mulai lagi".
+
+   `alternate`, bukan `infinite` tanpa arah: yang pertama melompat
+   dari bawah ke atas tiap 18 detik. Lompatan itu kelihatan sekali
+   saja, tapi cukup untuk membongkar kesan "halus" di seluruh
+   sapuan ini. */
+.loader__scan {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 38%;
+  pointer-events: none;
+  opacity: 0.5;
+  background-image: linear-gradient(
+    180deg,
+    transparent 0%,
+    color-mix(in srgb, var(--rule) 26%, transparent) 50%,
+    transparent 100%
+  );
+  animation: loader-scan 9s cubic-bezier(0.4, 0, 0.2, 1) infinite alternate;
+  will-change: transform;
+}
+
+@keyframes loader-scan {
+  from { transform: translate3d(0, -100%, 0); }
+  to   { transform: translate3d(0, 262%, 0); }
+}
+
+/* ── Seam ────────────────────────────────────────────────────
+   Isian aksen yang lepas dari baseline. Selama muat elemen ini tidak
+   tampil: yang bergerak adalah `loader__fill` di dalam track.
+
+   Saat keluar, `loader.js` memindahkannya ke `fixed` tepat di kotak
+   track, lalu menyusut ke tengah dan memudar — jadi garis aksen
+   tertinggal sendirian di atas halaman yang sudah terbuka.
+
+   Tanpa `position: fixed` di sini, animasi `top` / `left` / `width`
+   akan memicu layout tiap frame. Dengan `fixed`, yang berubah hanya
+   `transform` dan `opacity`, dan posisi akhirnya cukup diukur sekali di
+   detik itu juga. Lebar 0 dan opacity 0 supaya tidak ada yang tampil
+   sebelum diaktifkan. */
+.loader__seam {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 2px;
+  background-color: var(--accent);
+  opacity: 0;
+  transform-origin: center center;
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+
+@keyframes loader-failsafe {
+  0%, 84%     { opacity: 1; visibility: visible; }
+  98%         { opacity: 0; }
+  99.9%, 100% { opacity: 0; visibility: hidden; }
+}
+
+/* ─────────────── SCROLLBAR KUSTOM ───────────────
+   Bar native disembunyikan (lihat base.css → html.has-scrollbar) dan
+   diganti rail + thumb buatan sendiri, supaya tidak ada lagi thumb
+   terang bawaan Windows/Chrome yang menembus tema. Muncul hanya di
+   pointer fine (desktop); di sentuh, scroll tetap polos tanpa bar.
+
+   Interaksinya di components/scrollbar.js: drag thumb, klik rail untuk
+   lompat halaman, dan sinkron tiap frame lewat ScrollTrigger.
+   Tanpa JS, penanda .has-scrollbar tidak pernah terpasang → bar native
+   versi tipis tampil, jadi halaman tetap bisa discroll. */
+.scrollbar {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: var(--z-nav);
+  width: 12px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--dur-base) var(--ease-soft);
+}
+
+html.has-scrollbar .scrollbar { pointer-events: auto; }
+html.has-scrollbar .scrollbar.is-visible,
+html.has-scrollbar .scrollbar.is-dragging { opacity: 1; }
+
+.scrollbar__track {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  justify-content: center;
+}
+
+.scrollbar__thumb {
+  width: 3px;
+  min-height: 32px;
+  border-radius: 999px;
+  background-color: var(--rule-strong);
+  transform-origin: top center;
+  will-change: transform;
+  transition: background-color var(--dur-quick) var(--ease-soft),
+              width var(--dur-quick) var(--ease-soft);
+}
+
+.scrollbar:hover .scrollbar__thumb,
+.scrollbar.is-dragging .scrollbar__thumb { width: 6px; }
+
+.scrollbar:hover .scrollbar__thumb,
+.scrollbar.is-dragging .scrollbar__thumb { background-color: var(--ink-3); }
+.scrollbar.is-dragging .scrollbar__thumb { background-color: var(--accent); }
+
+@media (pointer: coarse) {
+  .scrollbar { display: none; }
+}
+
+/* ─────────────── CURSOR ─────────────── */
+.cursor {
+  position: fixed;
+  top: 0; left: 0;
+  z-index: var(--z-cursor);
+  display: none;
+  place-items: center;
+  width: 10px; height: 10px;
+  margin: -5px 0 0 -5px;
+  background-color: var(--ink);
+  border-radius: 999px;
+  pointer-events: none;
+  will-change: transform;
+  transition: width var(--dur-base) var(--ease-out),
+              height var(--dur-base) var(--ease-out),
+              margin var(--dur-base) var(--ease-out),
+              background-color var(--dur-base) var(--ease-soft),
+              opacity var(--dur-base) var(--ease-soft);
+}
+.cursor__label {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent-ink);
+  opacity: 0;
+  white-space: nowrap;
+  transition: opacity var(--dur-quick) var(--ease-soft);
+}
+.cursor.is-link    { background-color: var(--accent); }
+.cursor.is-view    { background-color: var(--accent); }
+.cursor.is-visible .cursor__label { opacity: 1; }
+.cursor.is-view    .cursor__label { font-size: 12px; }
+
+html.has-custom-cursor .cursor { display: grid; }
+html.has-custom-cursor .cursor.is-link { width: 34px; height: 34px; margin: -17px 0 0 -17px; }
+html.has-custom-cursor .cursor.is-view { width: 58px; height: 58px; margin: -29px 0 0 -29px; }
+html.has-custom-cursor .cursor.is-down { width: 6px; height: 6px; margin: -3px 0 0 -3px; }
+
+/* ─────────────── MARGIN RAIL ───────────────
+   Kolom 104px di tepi kiri. Semula isinya cuma dua hal di ujung kolom
+   (indeks + label aktif di atas, jam di bawah) dengan ruang kosong
+   setinggi layar di tengahnya — dan ruang kosong sebesar itu bukan
+   "minimalis", itu COLUMN yang belum diisi.
+
+   Sekarang isinya peta posisi: satu titik per section, dihubungkan garis
+   vertikal yang BERISI sebesar progres scroll, tersebar merata dari atas
+   ke bawah. Kelima baris punya tinggi yang sama (label selalu reserving
+   ruang, cuma berubah opasitas) supaya label aktif yang muncul dan
+   hilang tidak membuat baris lain melompat saat scroll.
+
+   Teks tetap TIDAK diputar (`writing-mode: vertical-rl`). Versi lama
+   memutar "01" dan "BERANDA" 90° supaya muat di kolom sempit, tapi teks
+   vertikal jauh lebih lambat dibaca — memutar kepala atau memiringkan
+   layar. Rail dilebarkan secukupnya agar "PERJALANAN" (10 huruf) muat. */
+
+.rail {
+  position: fixed;
+  top: 0; left: 0; bottom: 0;
+  z-index: 45;
+  display: none;
+  width: var(--rail-w);
+  /* WAJIB `column`. Tanpa itu, `display: flex` di breakpoint membuat peta
+     dan clock duduk berdampingan — jam muncul di samping peta, bukan di
+     bawahnya. */
+  flex-direction: column;
+  padding: var(--nav-h) var(--sp-2) var(--sp-5);
+  border-right: 1px solid var(--rule);
+  background-color: var(--paper);
+  transition: background-color var(--dur-base) var(--ease-soft);
+}
+
+/* Peta mengisi tinggi rail; clock dijepit di bawah. */
+.rail__nav {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.rail__map {
+  position: relative;
+  display: flex;
+  width: 100%;
+  /* Peta HARUS ikut tumbuh. Tanpa `flex: 1` di sini, tingginya sama
+     dengan isi (±220px), jadi `space-between` tidak punya ruang untuk
+     dibagi dan lima titiknya malah duduk berhimpitan di atas.
+
+     Batasnya dalam rem, bukan persen: persen butuh tinggi induk yang
+     definite, dan `.rail__nav` adalah flex item, jadi browser tidak
+     selalu menyelesaikannya saat persentase dihitung. */
+  flex: 1 1 auto;
+  max-height: 30rem;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  list-style: none;
+
+  /* Geometri garis, dihitung sekali di sini.
+     Garis harus membentang dari titik PERTAMA ke titik TERAKHIR, bukan dari
+     atas map ke bawah map — peta 480px tapi titiknya hanya menempati
+     10..452px. Kalau garis dipetakan ke 100% tinggi map, ujungnya selalu
+     melewati titik aktif sekitar 38px. */
+  --dot: 7px;
+  --row-h: 20px;            /* min-height .rail__row */
+  --step-gap: 2px;          /* gap internal .rail__step */
+  --name-h: 15.6px;         /* 0.75rem x line-height 1.3 */
+  --step-h: calc(var(--row-h) + var(--step-gap) + var(--name-h));
+  /* Titik diposisikan absolut tanpa `top`, jadi static position-nya
+     di tengah baris — 20px baris dengan titik 7px = 10px dari atas. */
+  --line-top: calc(var(--row-h) / 2);
+  --line-bottom: calc(var(--step-h) - var(--row-h) / 2);
+  --line-span: calc(100% - var(--line-top) - var(--line-bottom));
+}
+
+/* Garis penghubung + isian progres, keduanya pseudo-element dari map —
+   jadi satu pasang elemen, bukan satu per baris.
+
+   `--rail-progress` diisi `rail.js` dengan FRASI RUANG TITIK, bukan persen
+   scroll halaman: 0,5 berarti garis tepat di titik tengah. Tanpa JS varsinya
+   nol, jadi garis tetap terlihat sebagai batas dan tidak ada yang rusak. */
+.rail__map::before,
+.rail__map::after {
+  content: '';
+  position: absolute;
+  left: 3px;
+  width: 1px;
+  top: var(--line-top);
+  bottom: var(--line-bottom);
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+.rail__map::before { background-color: var(--rule); }
+
+/* Isian progres. Tingginya SEBAGIAN dari rentang antar titik, bukan 100%
+   tinggi map — itu yang membuat ujungnya mendarat tepat di titik.
+
+   Transisinya hanya pada `height`. Endpoint-nya selalu persis di salah satu
+   titik, jadi tidak ada yang perlu dianimasikan selain panjang garis itu
+   sendiri — dan `height` yang dianimasikan bergerak halus karena cuma satu
+   nilai yang berubah. */
+.rail__map::after {
+  background-color: var(--accent);
+  height: calc(var(--rail-progress, 0) * var(--line-span));
+  bottom: auto;
+  transform: translateX(-50%);
+  transition: height 0.45s var(--ease-out);
+}
+
+.rail__step {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding-left: 16px;
+}
+
+/* Baris peta: nomor + titik. BUKAN tautan — rail adalah penanda posisi,
+   bukan navigasi, dan menambah tautan kedua di kolom selebar 128px hanya
+   mengulang apa yang sudah ada di navbar. Karena itu tidak ada `cursor:
+   pointer`, tidak ada state `:hover`, dan tidak ada target fokus. */
+.rail__row {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: 20px;
+  color: var(--ink-3);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  line-height: 1.3;
+  text-transform: uppercase;
+  white-space: nowrap;
+  transition: color var(--dur-base) var(--ease-soft);
+  user-select: none;
+}
+
+.rail__dot {
+  position: absolute;
+  left: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background-color: var(--paper);
+  box-shadow: inset 0 0 0 1px var(--rule-strong);
+  transition: background-color var(--dur-base) var(--ease-soft),
+              box-shadow var(--dur-base) var(--ease-soft),
+              transform var(--dur-base) var(--ease-out);
+}
+
+.rail__num { font-variant-numeric: tabular-nums; }
+
+.rail__name {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.1em;
+  line-height: 1.3;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--accent);
+  /* Ruang SELALU direservasi: label aktif cuma berubah opasitas, bukan
+     display, jadi baris lain tidak bergeser saat scroll. */
+  opacity: 0;
+  transform: translateY(-2px);
+  transition: opacity var(--dur-base) var(--ease-soft),
+              transform var(--dur-base) var(--ease-out);
+}
+
+.rail__step.is-active .rail__dot {
+  background-color: var(--accent);
+  box-shadow: inset 0 0 0 3px var(--paper);
+  transform: scale(1.15);
+}
+.rail__step.is-active .rail__row { color: var(--accent); }
+.rail__step.is-active .rail__name { opacity: 1; transform: translateY(0); }
+.rail__step.is-visited .rail__dot { background-color: var(--rule-strong); }
+
+.rail__foot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding-top: var(--sp-4);
+}
+
+/* Jam memakai font display (Archivo), bukan mono — jadi satu-satunya
+   teks rail yang terasa "utama". Digit tabular (`tnum`) menjaga lebar
+   tiap angka tetap sama supaya tidak goyang saat menit berganti. */
+.rail__time {
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  line-height: 1.2;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+.rail__zone {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 400;
+  letter-spacing: 0.14em;
+  line-height: 1.3;
+  color: var(--ink-3);
+}
+
+@media (min-width: 1024px) {
+  .rail { display: flex; }
+  body { padding-left: var(--rail-w); }
+}
+
+/* ─────────────── NAVBAR ─────────────── */
+.nav {
+  position: fixed;
+  top: 0; right: 0;
+  left: var(--rail-w);
+  z-index: var(--z-nav);
+  height: var(--nav-h);
+  background-color: transparent;
+  border-bottom: 1px solid transparent;
+  transition: background-color var(--dur-base) var(--ease-soft),
+              border-color var(--dur-base) var(--ease-soft),
+              backdrop-filter var(--dur-base) var(--ease-soft);
+}
+.nav.is-scrolled {
+  background-color: color-mix(in srgb, var(--paper) 72%, transparent);
+  backdrop-filter: blur(14px) saturate(1.3);
+  -webkit-backdrop-filter: blur(14px) saturate(1.3);
+  border-bottom-color: var(--rule);
+}
+
+/* Saat menu mobile terbuka, navbar jadi transparan dan hanya menyisakan
+   tombol tutup. Kalau tidak, efek kaca akan mengaburkan isi menu. */
+.nav.is-menu-open {
+  background-color: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border-bottom-color: transparent;
+}
+@media (max-width: 999px) {
+  .nav.is-menu-open .nav__brand {
+    opacity: 0;
+    pointer-events: none;
+  }
+}
+
+.nav__inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  height: 100%;
+  max-width: none;
+}
+
+.nav__brand {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  min-height: 44px;
+  justify-content: center;
+}
+.nav__brand-name {
+  font-size: 0.9375rem;
+  font-weight: 500;
+  letter-spacing: -0.015em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.nav__brand-role {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: var(--tr-eyebrow);
+  text-transform: uppercase;
+  color: var(--ink-3);
+  transition: color var(--dur-base) var(--ease-soft);
+}
+
+.nav__links { display: none; }
+@media (min-width: 1000px) { .nav__links { display: block; } }
+
+.nav__list {
+  display: flex;
+  align-items: center;
+  gap: clamp(0.5rem, 1.4vw, 1.5rem);
+}
+.nav__link {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  height: 44px;
+  padding-inline: 0.15rem;
+  font-size: 0.9375rem;
+  color: var(--ink-2);
+  transition: color var(--dur-quick) var(--ease-soft);
+}
+.nav__link::after {
+  content: "";
+  position: absolute;
+  left: 0; bottom: 12px;
+  width: 100%; height: 1px;
+  background-color: var(--accent);
+  transform: scaleX(0);
+  transform-origin: right center;
+  transition: transform var(--dur-base) var(--ease-out);
+}
+.nav__link:hover,
+.nav__link:focus-visible { color: var(--ink); }
+.nav__link:hover::after,
+.nav__link:focus-visible::after { transform: scaleX(1); transform-origin: left center; }
+.nav__link.is-active { color: var(--ink); }
+.nav__link.is-active::after { transform: scaleX(1); transform-origin: left center; }
+
+.nav__actions { display: flex; align-items: center; gap: var(--sp-1); }
+
+/* ─────────────── PEMILIH BAHASA ─────────────── */
+.lang {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+}
+.lang__opt {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-width: 38px;
+  height: 44px;
+  background: none;
+  border: 0;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: var(--tr-eyebrow);
+  text-transform: uppercase;
+  color: var(--ink-3);
+  transition: color var(--dur-quick) var(--ease-soft);
+}
+.lang__opt::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 11px;
+  width: 100%;
+  height: 1px;
+  background-color: var(--accent);
+  transform: translateX(-50%) scaleX(0);
+  transition: transform var(--dur-base) var(--ease-out);
+}
+.lang__opt:hover,
+.lang__opt:focus-visible { color: var(--ink); }
+.lang__opt.is-active { color: var(--ink); }
+.lang__opt.is-active::after { transform: translateX(-50%) scaleX(1); }
+.lang__sep {
+  width: 1px;
+  height: 12px;
+  background-color: var(--rule-strong);
+  flex: none;
+}
+
+/* Layar sempit: rapatkan tripledah selector bahasa supaya nama tetap muat.
+   390px (target utama) sudah lega; aturan ini untuk 360px ke bawah. */
+@media (max-width: 400px) {
+  .lang__opt { min-width: 32px; }
+  .nav__actions { gap: 0; }
+}
+
+.icon-btn {
+  display: grid;
+  place-items: center;
+  width: 44px; height: 44px;
+  background: none;
+  border: 0;
+  border-radius: 999px;
+  color: var(--ink-2);
+  transition: color var(--dur-quick) var(--ease-soft),
+              background-color var(--dur-quick) var(--ease-soft);
+}
+.icon-btn:hover { color: var(--ink); background-color: var(--surface); }
+.icon-btn .icon { width: 18px; height: 18px; }
+.icon-btn .icon--moon { display: none; }
+[data-theme="dark"] .icon-btn .icon--sun  { display: none; }
+[data-theme="dark"] .icon-btn .icon--moon { display: block; }
+
+/* Burger
+   Dua garis diposisikan absolut di titik yang sama, lalu diputar ±45°.
+   Cara ini deterministik — kalau pakai `gap` grid, jarak antar garis
+   bergantung pada tata letak grid dan bentuk X-nya jadi meleset. */
+.burger {
+  position: relative;
+  display: block;
+  width: 44px;
+  height: 44px;
+  background: none;
+  border: 0;
+  color: var(--ink);
+}
+.burger__line {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 20px;
+  height: 1px;
+  margin: -0.5px 0 0 -10px;
+  background-color: currentColor;
+  transition: transform var(--dur-base) var(--ease-out);
+}
+.burger__line:first-child { transform: translateY(-3.5px); }
+.burger__line:last-child  { transform: translateY(3.5px); }
+
+@media (min-width: 1000px) { .burger { display: none; } }
+
+.burger[aria-expanded="true"] .burger__line:first-child { transform: rotate(45deg); }
+.burger[aria-expanded="true"] .burger__line:last-child  { transform: rotate(-45deg); }
+
+/* ─────────────── MENU MOBILE ─────────────── */
+.menu {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-menu);
+  background-color: var(--paper);
+  visibility: hidden;
+  opacity: 0;
+  transition: opacity var(--dur-base) var(--ease-soft),
+              visibility 0s linear var(--dur-base);
+}
+.menu.is-open {
+  visibility: visible;
+  opacity: 1;
+  transition: opacity var(--dur-base) var(--ease-soft), visibility 0s;
+}
+.menu__panel {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 100%;
+  padding: calc(var(--nav-h) + var(--sp-6)) var(--gutter) calc(var(--sp-6) + env(safe-area-inset-bottom));
+  padding-left: calc(var(--gutter) + var(--rail-w));
+}
+
+.menu__link {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-4);
+  min-height: 56px;
+  padding-block: var(--sp-2);
+  font-size: clamp(2rem, 11vw, 3rem);
+  font-weight: 500;
+  line-height: 1.05;
+  letter-spacing: var(--tr-display);
+  transform: translateY(1.5rem);
+  opacity: 0;
+}
+.menu__num {
+  font-family: var(--font-mono);
+  font-size: var(--fs-eyebrow);
+  font-weight: 400;
+  letter-spacing: var(--tr-eyebrow);
+  color: var(--accent);
+}
+.menu__text { transition: transform var(--dur-base) var(--ease-out); }
+.menu__link:hover .menu__text,
+.menu__link:focus-visible .menu__text { transform: translateX(0.5rem); }
+
+.menu__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  padding-top: var(--sp-4);
+  border-top: 1px solid var(--rule);
+  font-family: var(--font-mono);
+  font-size: var(--fs-eyebrow);
+  letter-spacing: var(--tr-eyebrow);
+  text-transform: uppercase;
+  color: var(--ink-2);
+  opacity: 0;
+}
+.menu__mail { color: var(--ink); border-bottom: 1px solid var(--accent); padding-bottom: 2px; }
+
+.menu.is-open .menu__link,
+.menu.is-open .menu__foot { animation: menu-in var(--dur-slow) var(--ease-out) forwards; }
+.menu.is-open .menu__item:nth-child(1) .menu__link { animation-delay: 0.06s; }
+.menu.is-open .menu__item:nth-child(2) .menu__link { animation-delay: 0.11s; }
+.menu.is-open .menu__item:nth-child(3) .menu__link { animation-delay: 0.16s; }
+.menu.is-open .menu__item:nth-child(4) .menu__link { animation-delay: 0.21s; }
+.menu.is-open .menu__item:nth-child(5) .menu__link { animation-delay: 0.26s; }
+.menu.is-open .menu__item:nth-child(6) .menu__link { animation-delay: 0.31s; }
+.menu.is-open .menu__foot { animation-delay: 0.36s; }
+
+@keyframes menu-in {
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ─────────────── HERO ─────────────── */
+.hero {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  min-height: 100dvh;
+  padding-top: calc(var(--nav-h) + var(--sp-7));
+  padding-bottom: var(--sp-8);
+  border-top: 0;
+}
+/* Beri ruang ekstra agar penanda gulir tidak menempel ke baris CTA */
+@media (min-width: 1024px) {
+  .hero { padding-bottom: var(--sp-10); }
+}
+.hero__grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--gutter);
+  align-content: end;
+  width: 100%;
+}
+@media (min-width: 700px)  { .hero__grid { grid-template-columns: repeat(8, minmax(0, 1fr)); } }
+@media (min-width: 1024px) { .hero__grid { grid-template-columns: repeat(12, minmax(0, 1fr)); } }
+
+.hero__main   { grid-column: 1 / -1; }
+.hero__actions{ grid-column: 1 / -1; }
+.hero__facts  { grid-column: 1 / -1; }
+
+/* Desktop: judul besar di kiri atas, meta turun ke baris bawah-kanan.
+   Asimetri disengaja, bukan posisi tengah yang simetris.
+   Kolom 9-12 baris pertama dipakai kartu keahlian (lihat blok
+   SKILL-INDEX di bawah), jadi `hero__main` berhenti di kolom 8 —
+   bukan 9 seperti semula. */
+@media (min-width: 1024px) {
+  .hero__main    { grid-column: 1 / span 8; }
+  .hero__actions { grid-column: 1 / span 5; }
+  .hero__facts   { grid-column: 8 / -1; align-self: end; }
+}
+
+.hero__title {
+  margin-top: var(--sp-5);
+  font-size: var(--fs-display);
+  font-weight: 500;
+  line-height: var(--lh-tight);
+  letter-spacing: var(--tr-display);
+}
+.hero__sub {
+  margin-top: var(--sp-5);
+  font-family: var(--font-mono);
+  font-size: clamp(0.75rem, 1.1vw, 0.8125rem);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+.hero__desc {
+  margin-top: var(--sp-4);
+  max-width: 42ch;
+  font-size: var(--fs-lead);
+  font-weight: 300;
+  line-height: 1.5;
+  color: var(--ink-2);
+}
+
+.status {
+  width: 6px; height: 6px;
+  background-color: var(--accent);
+  border-radius: 50%;
+  flex: none;
+}
+
+.hero__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+  margin-top: var(--sp-7);
+}
+@media (min-width: 1024px) { .hero__actions { margin-top: var(--sp-8); } }
+
+/* Meta facts.
+   Di desktop blok ini hanya selebar 5 dari 12 kolom, jadi isinya
+   ditata 2x2 — bukan 1x4 yang membuat "SMK Wikrama Bogor" pecah 3 baris. */
+.hero__facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0;
+  margin-top: var(--sp-8);
+  border-top: 1px solid var(--rule);
+}
+@media (min-width: 1024px) { .hero__facts { margin-top: 0; } }
+
+.fact {
+  padding: var(--sp-4) var(--sp-3) var(--sp-4) 0;
+  border-bottom: 1px solid var(--rule);
+}
+.fact:nth-child(odd)  { padding-right: var(--sp-4); }
+.fact:nth-child(even) { padding-left: var(--sp-4); border-left: 1px solid var(--rule); }
+.fact:nth-last-child(-n + 2) { border-bottom: 0; }
+
+.fact__key {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: var(--tr-eyebrow);
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.fact__val {
+  margin-top: var(--sp-1);
+  font-size: 0.9375rem;
+  font-weight: 500;
+}
+
+/* ─────────────── HERO · GRAFIK ORBIT ───────────────
+   Kolom 9-12 baris pertama hero tadinya kosong. Yang mengisinya sekarang
+   murni dekoratif: cincin hairline, pita ticks yang berputar, dan denyut
+   di pusat. Tidak ada teks dan tidak ada angka, jadi tidak ada yang bisa
+   salah dibaca sebagai klaim.
+
+   Bentuknya meter jam, bukan ilustrasi. Ketinggian dinetralkan supaya
+   kotaknya tetap simetris, dan semua group berputar di `svgOrigin`
+   yang sama supaya tidak ada yang bergeser saat diputar.
+
+   `pointer-events: none` bukan detail kecil: kursor kustom situs ini
+   bereaksi pada elemen yang dihover, dan tanpa ini dia akan ikut
+   bergerak mengikuti tetikus di area yang isinya cuma gambar. */
+.hero__motion {
+  display: none;
+}
+
+@media (min-width: 1024px) {
+  .hero__motion {
+    display: block;
+    grid-column: 9 / -1;
+    /* Baris pertama, supaya `hero__actions` dan `hero__facts` tetap
+       otomatis turun ke baris kedua tanpa perlu `grid-row` manual. */
+    grid-row: 1;
+    align-self: center;
+    justify-self: end;
+    width: 100%;
+    max-width: 30rem;
+    aspect-ratio: 1;
+    pointer-events: none;
+  }
+}
+
+.motion__svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  will-change: transform;
+}
+
+/* Tiga grup yang berputar dapat layer sendiri.
+   `will-change` di `.motion__svg` saja tidak cukup: rootnya memang
+   sudah layer, tapi grup di dalamnya yang berputar tetap harus
+   digambar ulang ke dalam layer itu setiap frame. Tiga elemen,
+   masing-masing sekitar 360px — murah, dan ini menghapus persis
+   pekerjaan cat yang tiap frame tidak ada gunanya. */
+.motion__ticks,
+.motion__spin {
+  will-change: transform;
+}
+
+/* Layer 2 dan layer 5: dua cincin PENUH yang diam. Keduanya adalah
+   penyeimbang - lapisan yang bergerak diapit dua cincin yang tidak
+   bergerak, dan itulah yang membuat putaran di antaranya terbaca. */
+/* Layer 2: cincin BERPUTUS-PUTUS tepat di dalam pita ticks.
+
+   Coraknya SEGMENT GARIS yang jelas, bukan titik. Bedanya dari layer 3
+   (`.motion__dash`, titik halus) harus terbaca: kalau dua cincin
+   bertitik berdampingan, mata akan menggabungkannya jadi satu lapisan.
+
+   Panjang segmen 9 dan jeda 9: cukup panjang untuk terbaca sebagai
+   garis, cukup pendek sehingga pola berulang tidak membuat cincin ini
+   terlihat diam. */
+.motion__bezel {
+  stroke: var(--rule-strong);
+  stroke-width: 1;
+  stroke-dasharray: 9 9;
+}
+
+/* Layer 5: satu cincin penuh yang sangat tipis. Ini yang jadi penyeimbang
+   - lapisan yang bergerak diapit dua cincin yang tidak bergerak. */
+.motion__ring {
+  stroke: var(--rule);
+  stroke-width: 1;
+}
+.motion__ring--faint {
+  stroke: var(--rule);
+  opacity: 0.55;
+}
+
+/* Layer 3: cincin BERTITIK yang berputar berlawanan arah dengan pita
+   ticks.
+
+   Jaraknya longgar, bukan rapat. Pola yang berulang terlalu rapat
+   membuat arah putaran sulit dibaca: mata tidak bisa menentukan cincin
+   ini berputar ke kanan atau ke kiri, dan akibatnya lapisan ini
+   terlihat "nempel" pada pita ticks. */
+.motion__dash {
+  stroke: var(--rule-strong);
+  stroke-width: 1;
+  stroke-dasharray: 1 14;
+  stroke-linecap: round;
+}
+.motion__arc {
+  stroke: var(--rule-strong);
+  stroke-width: 1;
+  stroke-linecap: round;
+}
+.motion__arc--soft {
+  stroke: var(--rule);
+}
+
+/* Tebal garis tetap: minor 1, mayor 1,5.
+   Pernah ada `calc(1px * var(--lw))` di sini untuk efek menebal saat
+   anticsip, tapi efek itu sudah dihapus - dan `var()` yang tidak
+   dianimasikan justru sempat membuat semua tick jadi 0px. Sekarang
+   tebalnya murni CSS, tanpa variabel. */
+.motion__tick {
+  stroke: var(--rule-strong);
+  stroke-width: 1;
+}
+.motion__tick--major {
+  stroke: var(--accent);
+  stroke-width: 1.5;
+}
+
+/* GLOW - hanya untuk 10 tick oranye, dan hanya saat pita memanjang.
+   Markup-nya 10 duplikat `.motion__glow` di dalam
+   `.motion__majors-glow`, bukan `filter` di atas `.motion__tick--major`.
+   Alasannya performa: `filter` per elemen dihitung ulang tiap frame
+   selama ada animasi, sedangkan duplikat ini di-blur satu kali lalu
+   yang diubah cuma `opacity` - ini masuk jalur kompositor. */
+
+.motion__majors-glow {
+  /* Blur di level GROUP, bukan per garis.
+     Filter region SVG dihitung dari bounding box objek, dan bbox garis
+     miring punya tinggi nol - blur-nya akan terpotong jadi garis tipis.
+     Bbox group yang mencakup 10 garis jauh lebih besar, jadi aman. */
+
+  /* 3px terlalu rapat: halo-nya jadi keras dan terang, bukan asap.
+     4px menyebar lebih longgar sehingga yang tersisa hanya kabut tipis
+     di sekitar garis, dan oranye tetap oranye - tidak berubah jadi
+     "lampu menyala". */
+  filter: blur(4px);
+
+  /* PENTING: jangan set `opacity` di sini.
+     Presentation attribute (yang ditulis JS) kalah oleh aturan CSS, jadi
+     `opacity: 0` di blok ini akan menimpa nilai JS setiap frame dan glow
+     tidak akan pernah muncul. Opacity awal dipasang inline di JS. */
+}
+
+.motion__glow {
+  stroke: var(--accent);
+  /* 7 terlalu tebal: halo menutupi garis crisp dan membuat pita oranye
+     terbaca lebih terang dari warna aslinya. 5 cukup untuk bikin halo
+     tanpa menutupi. */
+  stroke-width: 5;
+  stroke-linecap: round;
+}
+
+.motion__core {
+  fill: var(--accent);
+}
+/* Cincin di sekitar titik pusat: ada, tapi diam. Yang pernah ada di sini
+   adalah denyut yang mengembang-menyusut, dan itu yang dihapus - bukan
+   cincinnya. */
+.motion__halo {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 1;
+}
+
+/* Scroll hint */
+/* Penanda gulir diposisikan absolut di dalam .hero, dan .hero sudah
+   bergeser oleh padding-left body. Jadi cukup gutter, tanpa rail-w. */
+.scroll-hint {
+  position: absolute;
+  bottom: var(--sp-7);
+  left: var(--gutter);
+  display: none;
+  align-items: center;
+  gap: var(--sp-3);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: var(--tr-eyebrow);
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+@media (min-width: 1024px) { .scroll-hint { display: flex; } }
+.scroll-hint__track {
+  position: relative;
+  display: block;
+  width: 2.5rem; height: 1px;
+  background-color: var(--rule-strong);
+  overflow: hidden;
+}
+.scroll-hint__dot {
+  position: absolute;
+  inset: 0;
+  background-color: var(--accent);
+  transform-origin: left center;
+}
+
+/* ─────────────── BUTTON ─────────────── */
+.btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-3);
+  min-height: 48px;
+  padding: 0.85rem 1.5rem;
+  border: 1px solid transparent;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  overflow: hidden;
+  transition: color var(--dur-base) var(--ease-soft),
+              border-color var(--dur-base) var(--ease-soft);
+  will-change: transform;
+}
+.btn__text { position: relative; z-index: 1; }
+.btn__arrow { position: relative; z-index: 1; display: grid; place-items: center; transition: transform var(--dur-base) var(--ease-out); }
+.btn__arrow svg { width: 15px; height: 15px; }
+.btn:hover .btn__arrow { transform: translateX(4px); }
+
+.btn--primary { background-color: var(--ink); color: var(--paper); }
+.btn--primary::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-color: var(--accent);
+  transform: translateY(101%);
+  transition: transform var(--dur-base) var(--ease-out);
+}
+.btn--primary:hover::before,
+.btn--primary:focus-visible::before { transform: translateY(0); }
+.btn--primary:hover, .btn--primary:focus-visible { color: var(--accent-ink); }
+
+.btn--ghost { border-color: var(--rule-strong); color: var(--ink); }
+.btn--ghost::after {
+  content: "";
+  position: absolute;
+  left: 0; bottom: 0;
+  width: 100%; height: 1px;
+  background-color: var(--accent);
+  transform: scaleX(0);
+  transform-origin: right center;
+  transition: transform var(--dur-base) var(--ease-out);
+}
+.btn--ghost:hover::after,
+.btn--ghost:focus-visible::after { transform: scaleX(1); transform-origin: left center; }
+.btn--ghost:hover, .btn--ghost:focus-visible { border-color: var(--accent); }
+
+/* ─────────────── ABOUT ─────────────── */
+.about__grid { display: grid; gap: var(--gutter); }
+@media (min-width: 900px) {
+  .about__grid { grid-template-columns: repeat(12, minmax(0, 1fr)); }
+  .about__lead { grid-column: 1 / span 5; }
+  .about__body { grid-column: 7 / -1; }
+}
+
+.about__statement {
+  font-size: var(--fs-h3);
+  font-weight: 400;
+  line-height: 1.35;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+  max-width: 24ch;
+}
+
+.about__body { display: flex; flex-direction: column; gap: var(--sp-4); }
+
+/* Ketiga paragraf ini bobotnya sama, jadi warnanya juga harus sama.
+   Sebelumnya `p:first-of-type` diberi --ink, dan itu terlihat seperti
+   glitch: satu paragraf tiba-tiba putih di antara dua paragraf abu-abu.
+   Peran "lede" sudah dipenuhi `.about__statement` di atasnya — teks 28px
+   yang memang boleh tampil penuh. Memberi('--ink' juga ke paragraf biasa
+   hanya menggandakan peran itu, bukan menambah hierarki. */.about__body p { max-width: var(--measure); color: var(--ink-2); font-size: 0.9375rem; }
+
+.about__marks {
+  margin-top: var(--sp-4);
+  border-top: 1px solid var(--rule);
+}
+.about__marks li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  padding-block: var(--sp-3);
+  border-bottom: 1px solid var(--rule);
+  font-size: 0.9375rem;
+}
+.about__mark-key {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: var(--tr-eyebrow);
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.about__mark-val { text-align: right; }
+
+/* ─────────────── SKILLS ─────────────── */
+.skills__grid { display: grid; gap: var(--gutter); }
+/* Asimetri datang dari pergeseran vertikal, bukan dari lebar kolom yang
+   tidak merata — kolom yang terlalu sempit membuat tag dan judul pecah. */
+@media (min-width: 900px) {
+  .skills__grid { grid-template-columns: repeat(12, minmax(0, 1fr)); align-items: start; }
+  .skill-group--a { grid-column: 1 / span 4; }
+  .skill-group--b { grid-column: 5 / span 4; margin-top: 4.5rem; }
+  .skill-group--c { grid-column: 9 / -1;    margin-top: 9rem; }
+}
+
+.skill-group {
+  padding-top: var(--sp-4);
+  border-top: 1px solid var(--ink);
+}
+.skill-group__num {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: var(--tr-eyebrow);
+  color: var(--accent);
+}
+.skill-group__title {
+  margin-top: var(--sp-3);
+  font-size: var(--fs-h3);
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+.skill-group__note {
+  margin-top: var(--sp-2);
+  max-width: 30ch;
+  font-size: 0.9375rem;
+  color: var(--ink-2);
+}
+
+.tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin-top: var(--sp-5);
+}
+.tag {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0.3rem 0.8rem;
+  border: 1px solid var(--rule);
+  background-color: transparent;
+  font-size: 0.9375rem;
+  color: var(--ink);
+  cursor: default;
+  transition: transform var(--dur-base) var(--ease-out),
+              border-color var(--dur-base) var(--ease-soft),
+              color var(--dur-base) var(--ease-soft);
+}
+.tag::after {
+  content: "";
+  position: absolute;
+  left: 0; bottom: -1px;
+  width: 100%; height: 1px;
+  background-color: var(--accent);
+  transform: scaleX(0);
+  transform-origin: right center;
+  transition: transform var(--dur-base) var(--ease-out);
+}
+.tag:hover, .tag:focus-visible {
+  transform: translateY(-3px);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.tag:hover::after, .tag:focus-visible::after { transform: scaleX(1); transform-origin: left center; }
+
+/* ─────────────── PROYEK ─────────────── */
+.projects__list { display: grid; gap: clamp(3rem, 8vh, 6rem); }
+
+.project {
+  display: grid;
+  gap: var(--gutter);
+  scroll-margin-top: calc(var(--nav-h) + var(--sp-5));
+}
+@media (min-width: 900px) {
+  .project { grid-template-columns: repeat(12, minmax(0, 1fr)); align-items: center; }
+  /* Asimetri: project 1 & 3 lebar dengan kolom teks 5 kolom,
+     project 2 sempit dan bergeser ke kanan. */
+  .project--wide   .project__figure { grid-column: 1 / span 7; }
+  .project--wide   .project__body   { grid-column: 8 / -1; }
+  .project--narrow .project__figure { grid-column: 3 / span 6; }
+  .project--narrow .project__body   { grid-column: 9 / -1; }
+  .project--narrow .project__figure { margin-top: -2rem; }
+}
+
+.project__figure {
+  position: relative;
+  border: 1px solid var(--rule);
+  background-color: var(--surface);
+  overflow: hidden;
+}
+.project__figure svg { display: block; width: 100%; height: auto; }
+
+/* Cakupan mockup + garis aslinya, untuk parallax */
+.project__media { position: relative; overflow: hidden; }
+.project__media svg { transition: transform var(--dur-slow) var(--ease-out); will-change: transform; }
+
+.project__body { display: flex; flex-direction: column; }
+
+.project__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-3);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: var(--tr-eyebrow);
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+/* Dengan `flex-wrap: wrap` di induknya, tiap bagian meta pindah ke baris
+   sendiri utuh kalau tidak muat — bukan patah di tengah. Tanpa ini,
+   "Chrome Extension · 2026" di kolom sempit terpotong jadi
+   "CHROME EXTENSION" / "· 2026", dan pemisah "·" jadi baris pertama yang
+   sendirian. Terlihat seperti salah ketik, bukan pilihan layout. */
+.project__meta > span { white-space: nowrap; }
+.project__index { color: var(--accent); }
+
+/* Badge status ("Dalam pengembangan").
+   Sengaja BUKAN warna aksen. Aksen di halaman ini dipakai untuk hal yang
+   benar-benar penting — index proyek, garis aktif rail, titik aktif, dan
+   "100%" di bar loader. Badge status bukan salah satunya: kalau ikut aksen,
+   mata akan membacanya sebagai bagian dari emphasis, padahal isinya cuma
+   catatan bahwa proyeknya belum selesai.
+
+   Titik aksen 4px di kirinya tetap ada, tapi ukurannya jauh di bawah
+   hierarki emphasis lain, jadi status terbaca tanpa perlu bersaing. */
+.project__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45em;
+  padding: 0.15rem 0.45rem;
+  border: 1px solid var(--rule-strong);
+  color: var(--ink-3);
+  letter-spacing: 0.1em;
+}
+.project__badge::before {
+  content: '';
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background-color: var(--accent);
+}
+
+.project__title {
+  margin-top: var(--sp-3);
+  font-size: clamp(1.5rem, 3vw, 2.25rem);
+  font-weight: 500;
+  line-height: 1.1;
+  letter-spacing: var(--tr-display);
+}
+.project__desc {
+  margin-top: var(--sp-3);
+  max-width: 40ch;
+  font-size: 0.9375rem;
+  color: var(--ink-2);
+}
+
+/* ── Kegunaan & Fungsi ────────────────────────────────────────────
+   Dua daftar pendek dengan label mono, dipisah dari paragraf
+   deskripsi dan dari deretan tag.
+
+   Kenapa tidak satu paragraf: "dipakai untuk apa" dan "bagaimana
+   kerjanya" adalah dua pertanyaan berbeda. Digabung, paragrafnya
+   tumbuh jadi blok padat yang tidak pernah dibaca habis — dan proyek
+   sekeras apa pun tetap tampil sebagai satu kotak teks.
+
+   Penandanya `–` (en dash), bukan bullet filled dan bukan angka:
+   bullet-nya terasa seperti dokumen resmi, angka terasa seperti
+   langkah tutorial, dan ini bukan keduanya. */
+.project__facts {
+  margin-top: var(--sp-4);
+  padding-top: var(--sp-3);
+  border-top: 1px solid var(--rule);
+  max-width: 46ch;
+}
+.project__facts + .project__facts { margin-top: var(--sp-4); }
+
+.fact__label {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: var(--tr-eyebrow);
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.fact__list {
+  margin-top: var(--sp-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  font-size: 0.9375rem;
+  line-height: 1.55;
+  color: var(--ink-2);
+}
+.fact__list li {
+  position: relative;
+  padding-left: 1.15em;
+}
+.fact__list li::before {
+  content: "–";
+  position: absolute;
+  left: 0;
+  color: var(--ink-3);
+}
+.project__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin-top: var(--sp-4);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+/* Pemisah "/" ini dirender sebagai KARAKTER, jadi butuh kontras teks —
+   bukan warna garis dekoratif. Pada 10px, --rule-strong hanya 1,6:1. */
+.project__tags li:not(:last-child)::after { content: " /"; color: var(--ink-3); }
+
+.project__link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  align-self: flex-start;
+  margin-top: var(--sp-4);
+  min-height: 44px;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: var(--ink);
+}
+.project__link svg { width: 14px; height: 14px; transition: transform var(--dur-base) var(--ease-out); }
+.project__link:hover svg, .project__link:focus-visible svg { transform: translate(3px, -3px); }
+.project__link span { border-bottom: 1px solid var(--rule-strong); padding-bottom: 2px; transition: border-color var(--dur-quick) var(--ease-soft); }
+.project__link:hover span, .project__link:focus-visible span { border-color: var(--accent); }
+
+@media (min-width: 900px) {
+  .project:hover .project__media svg { transform: scale(1.035); }
+  .project__figure { transition: transform var(--dur-slow) var(--ease-out); }
+  .project:hover .project__figure { transform: translateY(-6px); }
+}
+
+/* ─────────────── PERJALANAN ─────────────── */
+.journey__grid { display: grid; gap: var(--gutter); }
+@media (min-width: 900px) {
+  .journey__grid { grid-template-columns: repeat(12, minmax(0, 1fr)); }
+  .journey__aside-wrap { grid-column: 1 / span 4; }
+  .timeline { grid-column: 6 / -1; }
+}
+.journey__aside {
+  max-width: 26ch;
+  font-size: 0.9375rem;
+  color: var(--ink-2);
+}
+
+.timeline { position: relative; padding-left: var(--sp-6); }
+.timeline__rail {
+  position: absolute;
+  top: 6px; bottom: 6px; left: 0;
+  width: 1px;
+  background-color: var(--rule);
+}
+.timeline__progress {
+  position: absolute;
+  top: 0; left: 0;
+  width: 1px;
+  height: 100%;
+  background-color: var(--accent);
+  transform: scaleY(0);
+  transform-origin: top center;
+}
+
+.tl-item {
+  position: relative;
+  padding-bottom: var(--sp-7);
+  scroll-margin-top: calc(var(--nav-h) + var(--sp-5));
+}
+.tl-item:last-child { padding-bottom: 0; }
+.tl-item__node {
+  position: absolute;
+  top: 7px; left: calc(-1 * var(--sp-6) + 1px);
+  width: 9px; height: 9px;
+  border: 1px solid var(--rule-strong);
+  background-color: var(--paper);
+  border-radius: 50%;
+  transition: border-color var(--dur-base) var(--ease-soft),
+              background-color var(--dur-base) var(--ease-soft);
+}
+.tl-item__year {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: var(--fs-eyebrow);
+  font-weight: 500;
+  letter-spacing: var(--tr-eyebrow);
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.tl-item__title {
+  margin-top: var(--sp-2);
+  font-size: 1.0625rem;
+  font-weight: 500;
+  letter-spacing: -0.015em;
+}
+.tl-item__desc {
+  margin-top: var(--sp-2);
+  max-width: 44ch;
+  font-size: 0.9375rem;
+  color: var(--ink-2);
+}
+.tl-item.is-seen .tl-item__node { border-color: var(--accent); background-color: var(--accent); }
+
+/* ─────────────── FOOTER ─────────────── */
+.footer {
+  padding-block: var(--sp-8) var(--sp-6);
+  border-top: 1px solid var(--rule);
+}
+.footer__top { display: flex; flex-direction: column; gap: var(--sp-2); }
+.footer__name { font-size: clamp(1.5rem, 4vw, 2.5rem); font-weight: 500; letter-spacing: var(--tr-display); line-height: 1.05; }
+.footer__sub {
+  font-family: var(--font-mono);
+  font-size: var(--fs-eyebrow);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+.footer__bottom {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  margin-top: var(--sp-7);
+  padding-top: var(--sp-4);
+  border-top: 1px solid var(--rule);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+/* Area sentuh, alasan yang sama seperti `.cert__open`: teks "Kembali ke atas"
+   hanya setinggi ~19px, padahal jarinya jauh lebih besar dari itu. */
+.footer__to-top {
+  display: inline-block;
+  padding-block: 13px;
+  margin-block: -13px;
+  color: var(--ink-2);
+  transition: color var(--dur-quick) var(--ease-soft);
+}
+.footer__to-top:hover, .footer__to-top:focus-visible { color: var(--accent); }
+
+/* ══════════════════════════════════════════════════════════════
+   SERTIFIKAT
+   ══════════════════════════════════════════════════════════════ */
+
+/* Tiga kolom, bukan dua. Sekarang ada tiga sertifikat: dengan dua kolom
+   kartu pertama dan kedua berdampingan lalu yang ketiga sendirian di baris
+   bawah, dan sisi kirinya terlihat kosong — bukan karena ukurannya salah,
+   tapi karena jumlahnya ganjil.
+
+   Kartunya jadi sekitar 400px, bukan 570px. Sertifikat memang dokumen
+   landscape (1200x746 sampai 1200x848), bukan poster, jadi menyempitkan
+   kolom membuat teks di dalamnya ikut kecil. Tapi kartu 570px memenuhi
+   hampir seluruh lebar layar dan sertifikat jadi lebih besar dari teksnya
+   sendiri — yang penting masih terbaca, bukan yang sebesar-besarnya. */
+.certs {
+  display: grid;
+  gap: var(--sp-6);
+}
+@media (min-width: 640px) {
+  .certs { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--gutter); }
+}
+@media (min-width: 1000px) {
+  .certs { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+.cert { display: flex; flex-direction: column; }
+
+/* — Bingkai —
+   Rasio dikunci 3/2 supaya ketiga kartu punya tinggi yang sama dan teksnya
+   (penerbit, judul, nomor kredensial) mulai satu baris. Tanpa ini, Code.org
+   yang rasionya 1,415 membuat judulnya turun sekitar 30px lebih rendah dari
+   dua IBM, dan tiga kartu terlihat tidak rata.
+
+   Ketiganya berpaper putih, jadi pita putih dari `contain` tidak terlihat:
+   yang tersisa hanya pita putih tipis, bukan gambar yang menggantung. */
+.cert__frame {
+  position: relative;
+  overflow: hidden;
+  aspect-ratio: 3 / 2;
+  background-color: #fff;
+  border: 1px solid var(--rule);
+  transition: border-color var(--dur-base) var(--ease-soft);
+}
+.cert:hover .cert__frame { border-color: var(--rule-strong); }
+
+/* Sertifikat selalu kertas putih bersih. Baik IBM yang biru muda maupun
+   Code.org yang penuh ornamen, tidak ada satupun yang bisa dibaca di atas
+   `--surface` yang gelap. Menempel gambarotone ke tema gelap akan membuat
+   sertifikat pucat dan washed out, dan di tema terang akan terlihat
+   seperti tempelan. Kertas putih itu disengaja, bukan lupa. */
+.cert__img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background-color: #fff;
+}
+
+.cert__corner {
+  /* Sudut aksen yang tumbuh saat hover. Satu elemen, tanpa border di
+     empat sisi — jadi tidak ada kotak yang menutupi sertifikat saat
+     state-nya berubah. */
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 0;
+  height: 0;
+  border-style: solid;
+  border-width: 0 0 var(--sp-4) var(--sp-4);
+  border-color: transparent transparent var(--accent) transparent;
+  opacity: 0;
+  transform: translate(-4px, 4px);
+  transition: opacity var(--dur-base) var(--ease-soft),
+              transform var(--dur-base) var(--ease-out);
+}
+.cert:hover .cert__corner { opacity: 1; transform: translate(0, 0); }
+
+/* — Teks di bawah bingkai — */
+.cert__body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  margin-top: var(--sp-3);
+  padding-top: var(--sp-3);
+  border-top: 1px solid var(--rule);
+}
+
+.cert__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sp-2) var(--sp-3);
+  font-family: var(--font-mono);
+  font-size: var(--fs-eyebrow);
+  letter-spacing: var(--tr-eyebrow);
+  text-transform: uppercase;
+}
+.cert__issuer { color: var(--accent); }
+.cert__date { color: var(--ink-3); }
+
+.cert__title {
+  margin-top: var(--sp-2);
+  font-size: clamp(1.125rem, 1.6vw, 1.375rem);
+  font-weight: 500;
+  line-height: var(--lh-snug);
+  letter-spacing: var(--tr-display);
+  color: var(--ink);
+}
+
+.cert__note {
+  margin-top: var(--sp-2);
+  max-width: 42ch;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-body);
+  color: var(--ink-2);
+}
+
+/* — Tautan "Lihat sertifikat" —
+   Bentuknya sengaja ditolak menjadi tombol filled: yang di sini bukan
+   aksi di dalam halaman, melainkan membuka berkas aslinya di tab baru.
+   Tombol solid akan menjanjikan sesuatu yang tidak terjadi. */
+/* Area sentuh. Teksnya sendiri cuma setinggi sekitar 19px, padahal target
+   sentuh yang wajar minimal 44px. Tanpa padding ini, membuka lightbox
+   sertifikat jadi hal yang mudah terlewat — dan lightbox satu-satunya cara
+   membaca sertifikat secara utuh di layar HP.
+
+   `margin-block` negatif sebesar itu mengembalikan ruang yang dipinjam
+   padding, jadi letak teksnya tidak bergeser satu piksel pun. */
+.cert__open {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  align-self: flex-start;
+  margin-top: var(--sp-4);
+  padding-block: 13px;
+  margin-block: -13px;
+  font-family: var(--font-mono);
+  font-size: var(--fs-eyebrow);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+  transition: color var(--dur-base) var(--ease-soft);
+}
+.cert__open-arrow {
+  display: grid;
+  place-items: center;
+  width: 0.9em;
+  height: 0.9em;
+  transition: transform var(--dur-base) var(--ease-out);
+}
+.cert__open-arrow svg { width: 100%; height: 100%; }
+.cert__open:hover { color: var(--accent); }
+.cert__open:hover .cert__open-arrow,
+.cert__open:focus-visible .cert__open-arrow { transform: translate(3px, -3px); }
+.cert__open:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+
+/* ══════════════════════════════════════════════════════════════
+   LIGHTBOX SERTIFIKAT
+   ══════════════════════════════════════════════════════════════ */
+
+/* `<dialog>` bawaan sudah memberi focus trap, `Esc`, dan
+   `inert`-nya konten di belakang. Yang belum ada adalah tampilannya:
+   browser mem tinted `background: Canvas` dan `padding: 1em`, jadi
+   semua di bawah WAJIB ditulis ulang — termasuk `border: 0`, karena
+   `dialog` punya border bawaan di beberapa browser dan garis 2px itu
+   terlihat sekali di layar gelap. */
+.lightbox {
+  width: min(92vw, 78rem);
+  max-width: none;
+  max-height: 90vh;
+  margin: auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  overflow: visible;
+}
+/* `display: flex` hanya saat terbuka. Menulis `display: flex` di aturan
+   dasar akan membuat dialog MUNCUL sebagai elemen biasa sebelum
+   `showModal()` dipanggil — itu kesalahan klasik `<dialog>`: atribut
+   `open`-nya yang mengatur, bukan `display` di CSS. */
+.lightbox[open] { display: flex; align-items: center; justify-content: center; }
+
+/* Backdrop gelap. `rgb(0 0 0 / 0,72)` dipakai karena warna ini HARUS
+   gelap di kedua tema — tidak ada `lighten()` yang bisa diandalkan di
+   sini, dan yang penting adalah teks di atasnya tetap terbaca. */
+.lightbox::backdrop {
+  background-color: rgb(0 0 0 / 0.72);
+  backdrop-filter: blur(6px) saturate(120%);
+}
+
+.lightbox__figure {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-height: 90vh;
+  /* Ruang khusus untuk tombol tutup. Tombolnya tidak boleh menutupi
+     isi sertifikat — di sertifikat IBM, pojok kanan atas memuat teks
+     "Completion Certificate". Ditaruh di atas gambar, bukan di atasnya. */
+  padding-top: calc(44px + var(--sp-2));
+}
+
+/* Kertas putih, sama seperti di kartu: tidak ada sertifikat yang
+   terbaca di atas latar gelap. */
+.lightbox__img {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 68vh;
+  object-fit: contain;
+  background-color: #fff;
+  border: 1px solid var(--rule);
+}
+
+.lightbox__caption {
+  display: flex;
+  flex-direction: column-reverse;
+  gap: var(--sp-1);
+  padding-top: var(--sp-3);
+}
+.lightbox__meta {
+  font-family: var(--font-mono);
+  font-size: var(--fs-eyebrow);
+  letter-spacing: var(--tr-eyebrow);
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.lightbox__title {
+  font-size: clamp(1.125rem, 1.8vw, 1.5rem);
+  font-weight: 500;
+  line-height: var(--lh-snug);
+  letter-spacing: var(--tr-display);
+  color: var(--ink);
+}
+
+/* Tombol tutup: 44px, bukan karena hanya ikon 16px. Target sentuh di
+   bawah 44px akan dianggap nihil di perangkat sentuh, dan ini
+   satu-satunya cara menutup lightbox selain `Esc` dan klik backdrop. */
+.lightbox__close {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  background-color: var(--paper);
+  border: 1px solid var(--rule-strong);
+  color: var(--ink);
+  transition: color var(--dur-base) var(--ease-soft),
+              border-color var(--dur-base) var(--ease-soft),
+              background-color var(--dur-base) var(--ease-soft);
+}
+.lightbox__close svg { width: 1rem; height: 1rem; }
+.lightbox__close:hover { color: var(--accent); border-color: var(--accent); }
+.lightbox__close:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }

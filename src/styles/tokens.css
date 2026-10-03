@@ -1,0 +1,111 @@
+/* =============================================================
+   TOKENS — satu-satunya sumber nilai desain
+   Ubah di sini, seluruh situs mengikuti.
+   ============================================================= */
+
+:root {
+  /* — Warna: terang — */
+  --paper:      #F4F4F1;
+  --surface:    #EBEAE5;
+  --surface-2:  #E2E1DB;
+  --ink:        #111111;
+  --ink-2:      #3C3C38;   /* 10,1:1 terhadap --paper */
+  --ink-3:      #53534F;   /*  7,0:1 — label kecil juga harus terbaca */
+  --rule:       #A0A09C;   /*  2,0:1 terhadap --surface-2 */
+  --rule-strong:#7E7E7A;   /*  3,1:1 — batas yang harus dikenali (WCAG 1.4.11) */
+  --accent:     #6E2E2E;
+  --accent-ink: #FFFFFF;
+  --accent-soft:rgba(110, 46, 46, 0.10);
+  --shadow-cursor: rgba(17, 17, 17, 0.16);
+
+  /* — Tipografi — */
+  --font-sans: "Archivo", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* Ukuran terkecil di situs ini 12px (`--fs-eyebrow`), dipakai untuk label
+     mono. Label mono naik ke 12px: dengan `letter-spacing` 0,14em dan
+     uppercase, huruf 10px PlusONE terlihat pongsel di layar terang — bukan
+     karena kontrasnya, tapi karena terlalu kecil untuk dibaca relaxing.
+     Jam di rail bukan pengecualian lagi: 1rem (16px) + `tnum`. */
+  --fs-display: clamp(3.25rem, 10.5vw, 9.5rem);
+  --fs-h2:      clamp(2.25rem, 5.6vw, 4.5rem);
+  --fs-h3:      clamp(1.25rem, 2vw, 1.75rem);
+  --fs-lead:    clamp(1.0625rem, 1.5vw, 1.375rem);
+  --fs-body:    1.0625rem;
+  --fs-sm:      0.9375rem;
+  --fs-eyebrow: 0.75rem;
+  --lh-tight: 0.9;
+  --lh-snug:  1.15;
+  --lh-body:  1.62;
+
+  --tr-display: -0.035em;
+  --tr-body:    -0.005em;
+  --tr-eyebrow: 0.14em;
+
+  /* — Spasi (ritme 4px) — */
+  --sp-1: 0.25rem;  --sp-2: 0.5rem;   --sp-3: 0.75rem;  --sp-4: 1rem;
+  --sp-5: 1.5rem;   --sp-6: 2rem;     --sp-7: 3rem;     --sp-8: 4rem;
+  --sp-9: 6rem;     --sp-10: 8rem;
+
+  --section-y: clamp(5.5rem, 13vh, 12.5rem);
+  --gutter:    clamp(1.25rem, 4vw, 4rem);
+  --measure:   62ch;
+
+  /* — Motion (archetype: Premium — tanpa overshoot) — */
+  --dur-quick: 0.18s;
+  --dur-base:  0.32s;
+  --dur-slow:  0.6s;
+  --ease-out:  cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-soft: cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* — Layout — */
+  --nav-h: 4.5rem;
+  --rail-w: 0px;
+  /* Navbar HARUS di atas menu, kalau tidak tombol tutup tidak terlihat */
+  --z-menu: 60;
+  --z-nav: 70;
+  --z-cursor: 90;
+  --z-loader: 100;
+}
+
+[data-theme="dark"] {
+  --paper:      #0A0A0A;
+  --surface:    #141413;
+  --surface-2:  #1D1D1B;
+  --ink:        #F5F5F5;
+  --ink-2:      #B8B8B4;   /* 10,0:1 terhadap --paper */
+  --ink-3:      #9A9A96;   /*  7,0:1 — label kecil juga harus terbaca */
+  --rule:       #4D4D49;   /*  2,0:1 terhadap --surface-2 */
+  --rule-strong:#6A6A66;   /*  3,1:1 — batas yang harus dikenali (WCAG 1.4.11) */
+  --accent:     #D08C84;
+  --accent-ink: #1A0E0E;
+  --accent-soft:rgba(208, 140, 132, 0.14);
+  --shadow-cursor: rgba(0, 0, 0, 0.5);
+
+  --nav-h: 4.5rem;
+  color-scheme: dark;
+}
+
+@media (min-width: 1024px) {
+  /* Lebar rail ditentukan oleh label TERPANJANG, bukan asal angka.
+     Yang harus muat (semua diukur di browser, bukan dikira-kira):
+       padding kiri rail    8px
+       kolom titik        16px   (.rail__step padding-left)
+       "PERJALANAN"       84px   10 huruf mono 12px + letter-spacing 0,1em
+       padding kanan rail  8px
+                     -------
+                       116px  minimum mutlak
+
+     Nilai lama 6,5rem (104px) menyisakan 88px untuk konten — 12px kurang,
+     dan label itu benar-benar terpotong 4px melewati tepi kanan. 8rem
+     (128px) memberi 96px untuk label, jadi ada sisa 12px.
+
+     Kalau label section diganti, ukur ulang: `el.getBoundingClientRect().width`
+     dari `.rail__name` yang terpanjang, bukan menebak dari jumlah huruf. */
+  :root { --rail-w: 8rem; }
+}
+
+/* Mengurangi token yang tidak perlu di layar sangat kecil */
+@media (max-width: 380px) {
+  :root { --gutter: 1rem; }
+}

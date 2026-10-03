@@ -1,0 +1,26 @@
+# Berkas yang tidak perlu ikut ke server.
+#
+# `background/` berisi clip sumber 440 KB yang tidak dirujuk halaman
+# mana pun, jadi tidak ada yang hilang dengan tidak ikut ke deploy. Sudah
+# masuk `.gitignore` juga, jadi repo tidak perlu memegangnya dua kali.
+background/
+
+# Alat lokal, bukan bagian dari situs.
+.freebuff/
+
+# PNG 15 KB dari download nyasar, namanya `--selector` tapi isinya gambar.
+--selector
+
+# CERTIFIKAT ASLI - JANGAN PERNAH DI-DEPLOY.
+#
+# Folder ini berisi salinan resolusi penuh dari dua sertifikat (1,7 MB),
+# termasuk yang namanya hash base64. Yang dipakai situs cuma versi sudah
+# dikompres + diberi watermark di `assets/certificates/`.
+#
+# Kalau folder ini ikut ter-deploy, URL-nya tinggal ditebak dan seluruh
+# file asli bisa diunduh tanpa melewati halaman sama sekali - proteksi
+# klik kanan di situs jadi tidak berarti apa-apa.
+sertifikat/
+
+# Cattatan & coretan kerja lokal
+*.log

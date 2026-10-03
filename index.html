@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="id" data-theme="light">
+<head>
+<meta charset="utf-8" />
+
+<!-- Refresh selalu kembali ke atas. INLINE dan di paling atas <head>,
+     bukan di modul.
+
+     Alasannya urutan waktu: modul `<script type="module">` bersifat
+     deferred, jadi baru berjalan setelah HTML selesai diurai. Pemulihan
+     posisi milik browser diputuskan lebih dulu dari itu — mematikan di
+     modul sudah terlambat, karena posisinya sudah dikembalikan.
+     Script inline tanpa `defer`/`async` berjalan saat parser
+     menemukan tag ini, yaitu sebelum apa pun yang lain.
+
+     `scrollTo(0, 0)` di sini belum tentu berhasil karena tinggi dokumen
+     belum diukur; pengukurannya ditangani modul, di rAF. Yang perlu
+     dicegat di sini hanya keputusan browser itu sendiri. -->
+<script>
+  if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+  window.scrollTo(0, 0);
+</script>
+
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Firmansyah</title>
+<meta name="description" content="Portofolio Firmansyah Al Jaelani, siswa kelas 11 SMK Wikrama Bogor jurusan Perhotelan yang tertarik pada teknologi, web, dan desain." />
+<meta name="author" content="Firmansyah Al Jaelani" />
+<meta name="theme-color" content="#F4F4F1" media="(prefers-color-scheme: light)" />
+<meta name="theme-color" content="#0A0A0A" media="(prefers-color-scheme: dark)" />
+
+<meta property="og:type" content="website" />
+<meta property="og:locale" content="id_ID" />
+<meta property="og:title" content="Firmansyah" />
+<meta property="og:description" content="Siswa SMK Wikrama Bogor jurusan Perhotelan. Tertarik pada teknologi, web, dan desain." />
+<meta property="og:site_name" content="Firmansyah" />
+<meta name="twitter:card" content="summary_large_image" />
+
+<!-- Semua path di bawah RELATIF, bukan absolut (/src/...).
+
+     Alasannya: website ini harus jalan baik saat Live Server menyajikan
+     folder proyek sebagai root, maupun saat folder induknya yang jadi root
+     (mis. URL jadi /coba/index.html). Path absolut akan 404 di kasus kedua
+     dan seluruh tampilan jadi polos tanpa CSS. -->
+
+<link rel="icon" href="icon.svg" type="image/svg+xml" />
+<link rel="canonical" href="https://firmansyahaljaelani.vercel.app/" />
+
+<link rel="preload" href="assets/fonts/archivo-latin.woff2" as="font" type="font/woff2" crossorigin />
+<link rel="preload" href="assets/fonts/jetbrains-mono-latin.woff2" as="font" type="font/woff2" crossorigin />
+<link rel="stylesheet" href="src/styles/main.css" />
+
+<script>
+  /* Dijalankan sebelum paint supaya tidak ada kedipan tema. Sengaja inline & blocking. */
+  (function () {
+    try {
+      var saved = localStorage.getItem('fa-theme');
+      var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      document.documentElement.setAttribute('data-theme', saved || (prefersDark ? 'dark' : 'light'));
+    } catch (e) {
+      document.documentElement.setAttribute('data-theme', 'light');
+    }
+  })();
+</script>
+
+<script defer src="https://cdn.jsdelivr.net/npm/gsap@3.15.0/dist/gsap.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/gsap@3.15.0/dist/ScrollTrigger.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/gsap@3.15.0/dist/SplitText.min.js"></script>
+</head>
+
+<body>
+<a class="skip-link" href="#main" data-i18n="skip">Lewati ke konten utama</a>
+
+<!-- Layar muat — "print sheet".
+
+     Konsepnya lembar kerja cetak yang sedang disiapkan sebelum dicetak.
+     Empat registration mark (tanda potong cetakan) mengunci keempat sudut
+     layar, wordmark diset huruf demi huruf dari balik baseline, dan satu
+     garis rambut menjadi baseline tempat progres berjalan.
+
+     Berbeda dari versi lamanya: tidak ada tombol "Masuk" dan tidak ada
+     filter goo. Halaman terbuka sendiri begitu progres mencapai 100%.
+     Peta waktunya ada di `loader.js`, dan angka-angkanya sengaja
+     kelihatan supaya tidak perlu ditebak.
+
+     Dua hal yang ditangani JavaScript, bukan oleh CSS:
+       - `loader-failsafe` di `components.css` menyembunyikan layar ini
+         otomatis kalau JavaScript tidak pernah jalan sama sekali.
+       - `?intro=off` melewati layar ini sepenuhnya untuk review tata letak. -->
+<div class="loader" id="loader">
+  <div class="loader__sheet">
+    <!-- ── Pengisi area atas ──────────────────────────────────────
+         Teks loader semua menempel di dasar lembar, jadi bagian atas
+         layar tadinya hampa: tidak ada yang bergerak di sana selama
+         2,2 detik, dan itu terbaca sebagai "layar yang nyangkut" bukan
+         "halaman sedang disiapkan".
+
+         Isinya dua lapis, sesuai prinsip motion tiga lapis:
+
+           SECONDARY  .loader__frame - kerangka halaman. Potongan layout
+                       muncul satu per satu mengikuti kejadian muat yang
+                       sungguhan, dan bentuknya meniru grid hero asli:
+                       kolom teks di kiri, dial bundar di kanan. Jadi ini
+                       bukan hiasan - bentuk yang muncul sama dengan
+                       pekerjaan yang baru selesai, persis seperti angka
+                       persennya.
+
+           AMBIENT    .loader__scan - sapuan cahaya lambat, satu-satunya
+                       gerak looping di layar ini. Berdampingan dengan
+                       kerangka yang diam, jadi matanya tidak pernah
+                      perkembangan dua gerak tanpa hierarchy.
+
+         Keduanya di dalam `.loader__sheet`, bukan di `.loader`, supaya
+         ikut tercetak dan ikut turun bersama kertasnya - sama seperti
+         registration mark. Bukan standout: warna `--rule` dan setipis
+         rambut, karena aksen di layar ini milik bar progres saja. -->
+
+    <!-- Garis pandu: batas rail dan dua batas kolom. Tiga rambut dalam
+         SATU elemen - kalau ditulis sebagai elemen terpisah, itu tiga
+         kali kesempatan layout tanpa guna untuk sesuatu yang tidak
+         pernah bergerak. Sebagai background-layer, satu kali paint. -->
+    <div class="loader__guides" aria-hidden="true"></div>
+
+    <div class="loader__frame" aria-hidden="true">
+      <div class="loader__frame-main">
+        <span class="loader__frame-line loader__frame-line--kicker" data-frame-step="layout" data-frame-in="bar"></span>
+        <span class="loader__frame-line loader__frame-line--h1" data-frame-step="layout" data-frame-in="bar"></span>
+        <span class="loader__frame-line loader__frame-line--h1 loader__frame-line--h1b" data-frame-step="fonts" data-frame-in="bar"></span>
+        <span class="loader__frame-line" data-frame-step="fonts" data-frame-in="bar"></span>
+        <span class="loader__frame-line loader__frame-line--mid" data-frame-step="load" data-frame-in="bar"></span>
+        <span class="loader__frame-line loader__frame-line--short" data-frame-step="load" data-frame-in="bar"></span>
+      </div>
+      <div class="loader__frame-side">
+        <span class="loader__frame-dial" data-frame-step="fonts" data-frame-in="dial">
+          <!-- `icon.png` - mark yang sama dengan `icon.svg`, tapi versi
+               raster. Yang dipakai loader adalah PNG, bukan SVG, dan itu
+               bukan sekadar soal format: `icon.svg` hasil trace raster
+               (VTracer) yang MEMBAWA latar krem ikut jadi path,
+               sehingga dipakainya di loader gelap akan memunculkan kotak
+               krem menyilaukan di tengah dial.
+
+               Yang di sini benar-benar transparan - alpha 0 di keempat
+               sudut, 85% area jernih. Jadi mark-nya bisa langsung berdiri
+               di atas dial gelap tanpa perlu warna ulang, dan ikut tema
+               otomatis karena tidak ada warna latar yang perlu diatasi.
+
+               Favicon TETAP `icon.svg`, di `<link rel="icon">` di kepala
+               dokumen: untuk 16px di tab, badge berlatar krem terbaca
+               jauh lebih baik daripada mark transparan yang akan hilang
+               jadi gumpalan hitam.
+
+               `alt` kosong: dekoratif, sudah ada `aria-hidden` di
+               induknya. -->
+          <img class="loader__frame-icon" src="icon.png" alt="" width="1254" height="1254" />
+        </span>
+      </div>
+    </div>
+
+    <span class="loader__scan" aria-hidden="true"></span>
+
+    <!-- Registration mark: tanda potong cetakan, satu per sudut layar.
+         Dua lengan 1px; yang horizontal dan vertikal dipisah supaya
+         masing-masing bisa tumbuh dari ujung luar ke sudut tanpa perlu
+         clip-path berstring.
+
+         Di dalam sini mark
+         ikut turun bersama lembarnya — persis seperti tanda potong
+         yang ikut tercetak. -->
+    <span class="loader__mark loader__mark--tl" aria-hidden="true"><span></span><span></span></span>
+    <span class="loader__mark loader__mark--tr" aria-hidden="true"><span></span><span></span></span>
+    <span class="loader__mark loader__mark--bl" aria-hidden="true"><span></span><span></span></span>
+    <span class="loader__mark loader__mark--br" aria-hidden="true"><span></span><span></span></span>
+
+   <div class="loader__foot">
+    <!-- Readout mesin. Bagian yang paling berubah dari loader lama: isinya
+         bukan hiasan dan bukan timer, tapi nama pekerjaan yang benar-benar
+         sedang terjadi. role="status" supaya pembaca layar ikut tahu
+         sampai mana halaman ini benar-benar siap. -->
+    <p class="loader__status" role="status">
+      <span class="loader__status-step" data-loader-step>01</span>
+      <span class="loader__status-of" data-loader-total>/ 05</span>
+      <span class="loader__status-rule" aria-hidden="true"></span>
+      <span class="loader__status-label" data-loader-status data-i18n="loader.dom">Menyusun halaman</span>
+    </p>
+
+    <!-- Wordmark. aria-hidden karena ini brand, dan h1 aslinya ada di
+         halaman: membacanya dua kali hanya menambah clutter. Perhuruf,
+         bukan satu blok, dan itu yang membuat gesturnya terbaca sebagai
+         "huruf sedang diset" dan bukan "teks sedang fade". -->
+    <p class="loader__word" aria-hidden="true">
+      <span class="loader__word-line"><span>F</span><span>i</span><span>r</span><span>m</span><span>a</span><span>n</span><span>s</span><span>y</span><span>a</span><span>r</span><span>h</span></span>
+    </p>
+
+    <!-- Baseline + progres. Track 1px, isian aksen 2px: satu garis oxblood
+         yang menindih garis rambut. Angka persen di ujung kanan menjawab
+         "sudah penuh atau belum", karena track kosong dan track penuh
+         nyaris tidak bisa dibedakan di layar gelap. -->
+    <div class="loader__rule" aria-hidden="true">
+      <span class="loader__rule-track"><span class="loader__fill" data-loader-fill></span></span>
+      <span class="loader__pct" data-loader-pct>0%</span>
+    </div>
+   </div>
+  </div>
+
+  <!-- Isian aksen yang lepas dari baseline. Selama muat, ini cuma isi
+       loader__fill; saat keluar, loader.js memindahkannya ke fixed tepat
+       di posisi track, jadi ia tertinggal di atas halaman yang sudah
+       terbuka, lalu menyusut ke tengah dan menghilang. -->
+  <span class="loader__seam" data-loader-seam aria-hidden="true"></span>
+</div>
+
+<!-- Kursor kustom: hanya pointer fine (desktop) -->
+<div class="cursor" id="cursor" aria-hidden="true">
+  <span class="cursor__label"></span>
+</div>
+
+<!-- Margin rail: peta posisi halaman + jam Bogor.
+
+    DEKORATIF. Tulah markup yang bersih untuk dibaca (<ol>/<li>) dan bukan
+    daftar tautan, karena rail ini penanda posisi, bukan navigasi: navbar
+    sudah menyediakan tautan ke tiap section, dan menambah tautan kedua di
+    kolom selebar 104px hanya mengulang hal yang sama. Tidak ada yang perlu
+    diklik di sini.
+
+    Karena isinya murni visual, `<aside>` ini `aria-hidden` — pembaca layar
+    tidak perlu menemukan "anda sedang di section 02" dua kali. Informasi
+    yang sama sudah ada di navbar (`aria-current`) dan di brand navbar.
+
+    Daftar di bawah ditulis manual, bukan dibangun dari <section>, supaya
+    tidak ada kedipan dan tetap berguna saat JS mati. `rail.js` tetap
+    membangun ulang dari section asli (sumber kebenaran tunggal) saat
+    hydration, dan memberi peringatan kalau jumlahnya tidak cocok — supaya
+    penambahan section tidak diam-diam membuat rail basi. -->
+<aside class="rail" id="rail" aria-hidden="true" data-hero="chrome">
+  <div class="rail__nav">
+    <ol class="rail__map" id="rail-map">
+      <li class="rail__step is-active" data-section-id="hero">
+        <span class="rail__row">
+          <span class="rail__dot" aria-hidden="true"></span>
+          <span class="rail__num">01</span>
+        </span>
+        <span class="rail__name" data-i18n="sections.hero">Beranda</span>
+      </li>
+      <li class="rail__step" data-section-id="tentang">
+        <span class="rail__row">
+          <span class="rail__dot" aria-hidden="true"></span>
+          <span class="rail__num">02</span>
+        </span>
+        <span class="rail__name" data-i18n="sections.tentang">Tentang</span>
+      </li>
+      <li class="rail__step" data-section-id="keahlian">
+        <span class="rail__row">
+          <span class="rail__dot" aria-hidden="true"></span>
+          <span class="rail__num">03</span>
+        </span>
+        <span class="rail__name" data-i18n="sections.keahlian">Keahlian</span>
+      </li>
+      <li class="rail__step" data-section-id="proyek">
+        <span class="rail__row">
+          <span class="rail__dot" aria-hidden="true"></span>
+          <span class="rail__num">04</span>
+        </span>
+        <span class="rail__name" data-i18n="sections.proyek">Proyek</span>
+      </li>
+      <li class="rail__step" data-section-id="sertifikat">
+        <span class="rail__row">
+          <span class="rail__dot" aria-hidden="true"></span>
+          <span class="rail__num">05</span>
+        </span>
+        <span class="rail__name" data-i18n="sections.sertifikat">Sertifikat</span>
+      </li>
+      <li class="rail__step" data-section-id="perjalanan">
+        <span class="rail__row">
+          <span class="rail__dot" aria-hidden="true"></span>
+          <span class="rail__num">06</span>
+        </span>
+        <span class="rail__name" data-i18n="sections.perjalanan">Perjalanan</span>
+      </li>
+    </ol>
+  </div>
+
+  <div class="rail__foot" aria-hidden="true">
+    <span class="rail__time" id="rail-time">--:--</span>
+    <span class="rail__zone">WIB</span>
+  </div>
+</aside>
+
+<header class="nav" id="nav" data-hero="chrome">
+  <div class="nav__inner container">
+    <a class="nav__brand" href="#hero" data-cursor="link">
+      <span class="nav__brand-name">Firmansyah</span>
+      <span class="nav__brand-role" id="nav-brand-role" data-i18n="nav.home">Beranda</span>
+    </a>
+
+    <nav class="nav__links" aria-label="Navigasi utama">
+      <ul class="nav__list">
+        <li><a class="nav__link is-active" href="#hero" data-nav data-i18n="nav.home">Beranda</a></li>
+        <li><a class="nav__link" href="#tentang" data-nav data-i18n="nav.about">Tentang</a></li>
+        <li><a class="nav__link" href="#keahlian" data-nav data-i18n="nav.skills">Keahlian</a></li>
+      <li><a class="nav__link" href="#proyek" data-nav data-i18n="nav.projects">Proyek</a></li>
+      <li><a class="nav__link" href="#sertifikat" data-nav data-i18n="nav.certificates">Sertifikat</a></li>
+      <li><a class="nav__link" href="#perjalanan" data-nav data-i18n="nav.journey">Perjalanan</a></li>
+      </ul>
+    </nav>
+
+    <div class="nav__actions">
+      <!-- Pemilih bahasa -->
+      <div class="lang" id="lang-switch" role="group" aria-label="Ganti bahasa" data-i18n-attr="aria-label:langLabel">
+        <button class="lang__opt is-active" type="button" data-lang="id" aria-pressed="true">ID</button>
+        <span class="lang__sep" aria-hidden="true"></span>
+        <button class="lang__opt" type="button" data-lang="en" aria-pressed="false">EN</button>
+      </div>
+
+      <button class="icon-btn" id="theme-toggle" type="button" aria-label="Ganti tema terang dan gelap" data-i18n-attr="aria-label:themeLabel">
+        <svg class="icon icon--sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="4" />
+          <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" />
+        </svg>
+        <svg class="icon icon--moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z" />
+        </svg>
+      </button>
+
+      <button class="burger" id="burger" type="button" aria-label="Buka menu" aria-expanded="false" aria-controls="mobile-menu">
+        <span class="burger__line"></span>
+        <span class="burger__line"></span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<!-- Menu mobile -->
+<div class="menu" id="mobile-menu" hidden>
+  <div class="menu__panel">
+    <nav class="menu__nav" aria-label="Navigasi mobile">
+      <ul class="menu__list" id="menu-list">
+        <li><a class="menu__link" href="#hero" data-menu-link><span class="menu__num">01</span><span class="menu__text" data-i18n="nav.home">Beranda</span></a></li>
+        <li><a class="menu__link" href="#tentang" data-menu-link><span class="menu__num">02</span><span class="menu__text" data-i18n="nav.about">Tentang</span></a></li>
+        <li><a class="menu__link" href="#keahlian" data-menu-link><span class="menu__num">03</span><span class="menu__text" data-i18n="nav.skills">Keahlian</span></a></li>
+        <li><a class="menu__link" href="#proyek" data-menu-link><span class="menu__num">04</span><span class="menu__text" data-i18n="nav.projects">Proyek</span></a></li>
+        <li><a class="menu__link" href="#sertifikat" data-menu-link><span class="menu__num">05</span><span class="menu__text" data-i18n="nav.certificates">Sertifikat</span></a></li>
+      <li><a class="menu__link" href="#perjalanan" data-menu-link><span class="menu__num">06</span><span class="menu__text" data-i18n="nav.journey">Perjalanan</span></a></li>
+      </ul>
+    </nav>
+    <div class="menu__foot">
+      <p class="menu__meta">Bogor, Indonesia &middot; WIB</p>
+    </div>
+  </div>
+</div>
+
+<main id="main">
+
+  <!-- ═══ 01 · HERO ═══════════════════════════════════════════════ -->
+  <section class="section hero" id="hero" data-index="01" data-i18n-attr="data-section:sections.hero">
+    <div class="container hero__grid">
+      <div class="hero__main">
+        <h1 class="hero__title" data-split="mask" data-i18n-html="hero.title">Halo, saya<br />Firmansyah.</h1>
+
+        <p class="hero__sub" data-hero="sub" data-i18n="hero.sub">
+          Siswa Perhotelan &middot; Pembelajar Kreatif &middot; Antarik Web
+        </p>
+
+        <p class="hero__desc" data-hero="desc" data-i18n="hero.desc">
+          Teknologi saya pelajari di luar jam sekolah. Standar perhotelan saya pelajari di kelas.
+          Dua-duanya berjalan bersamaan.
+        </p>
+      </div>
+
+      <!-- Kolom 9-12 baris pertama hero tadinya kosong. Isinya murni
+           dekoratif: cincin, ticks, dan satu denyut di tengah — bukan
+           informasi, jadi `aria-hidden` dan `pointer-events: none`.
+           Tanpa JS host tetap kosong; `heroMotion.js` yang membangun
+           SVG-nya. -->
+      <div class="hero__motion" data-hero="motion" aria-hidden="true"></div>
+
+      <div class="hero__actions" data-hero="cta">
+        <a class="btn btn--primary" href="#proyek" data-magnetic data-cursor="link">
+          <span class="btn__text" data-i18n="hero.ctaPrimary">Lihat Proyek</span>
+          <span class="btn__arrow" aria-hidden="true">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 8h10M9 4l4 4-4 4" />
+            </svg>
+          </span>
+        </a>
+        <a class="btn btn--ghost" href="#tentang" data-magnetic data-cursor="link">
+          <span class="btn__text" data-i18n="hero.ctaSecondary">Tentang Saya</span>
+        </a>
+      </div>
+
+      <dl class="hero__facts" data-hero="facts">
+        <div class="fact">
+          <dt class="fact__key" data-i18n="hero.facts.0.key">Berbasis di</dt>
+          <dd class="fact__val" data-i18n="hero.facts.0.val">Bogor, Indonesia</dd>
+        </div>
+        <div class="fact">
+          <dt class="fact__key" data-i18n="hero.facts.1.key">Sekolah</dt>
+          <dd class="fact__val" data-i18n="hero.facts.1.val">SMK Wikrama Bogor</dd>
+        </div>
+        <div class="fact">
+          <dt class="fact__key" data-i18n="hero.facts.2.key">Kelas</dt>
+          <dd class="fact__val" data-i18n="hero.facts.2.val">11</dd>
+        </div>
+        <div class="fact">
+          <dt class="fact__key" data-i18n="hero.facts.3.key">Jurusan</dt>
+          <dd class="fact__val" data-i18n="hero.facts.3.val">Perhotelan</dd>
+        </div>
+      </dl>
+    </div>
+
+    <a class="scroll-hint" href="#tentang" aria-label="Gulir ke bagian Tentang"
+       data-i18n-attr="aria-label:hero.scrollAria" data-cursor="link">
+      <span class="scroll-hint__text" data-i18n="hero.scroll">Gulir</span>
+      <span class="scroll-hint__track" aria-hidden="true"><span class="scroll-hint__dot"></span></span>
+    </a>
+  </section>
+
+  <!-- ═══ 02 · TENTANG ════════════════════════════════════════════ -->
+  <section class="section about" id="tentang" data-index="02" data-i18n-attr="data-section:sections.tentang">
+    <div class="container">
+      <header class="section-head">
+        <p class="eyebrow" data-reveal data-i18n="about.eyebrow">02 &mdash; Tentang</p>
+        <h2 class="section-title" data-reveal data-i18n="about.title">Tentang saya.</h2>
+      </header>
+
+      <div class="about__grid">
+        <div class="about__lead">
+          <p class="about__statement" data-reveal data-i18n="about.statement">
+            Dua hal yang saya pelajari bersamaan: mengurus tamu, dan mengurus layar kosong.
+          </p>
+        </div>
+
+        <div class="about__body">
+          <p data-reveal data-i18n="about.p1">
+            Perkenalkan, saya Firmansyah Al Jaelani. Saya siswa kelas 11 di SMK Wikrama Bogor,
+            jurusan Perhotelan. Minat saya sebenarnya terbagi dua: dunia hospitality yang saya
+            pelajari di sekolah, dan dunia teknologi yang saya kerjakan sendiri di luar jam sekolah.
+          </p>
+          <p data-reveal data-i18n="about.p2">
+            Saya senang mencoba hal yang belum pernah saya lakukan. Membuat website, mempelajari
+            bahasa pemrograman baru, lalu merakit project sederhana sampai bisa berjalan. Cara
+            belajar saya lebih banyak didorong rasa penasaran daripada rencana yang sudah rapi.
+          </p>
+          <p data-reveal data-i18n="about.p3">
+            Di sisi hospitality, saya sudah pernah menangani housekeeping dan operasional hotel:
+            menyiapkan kamar, menjaga standar kerapian, serta bagian depan yang perlu dijawab
+            dengan cepat dan tetap sopan.
+          </p>
+
+          <ul class="about__marks" data-reveal>
+            <li><span class="about__mark-key" data-i18n="about.marks.0.key">Dasar</span><span class="about__mark-val" data-i18n="about.marks.0.val">Housekeeping &amp; Operasional</span></li>
+            <li><span class="about__mark-key" data-i18n="about.marks.1.key">Fokus</span><span class="about__mark-val" data-i18n="about.marks.1.val">Web &amp; Antarmuka</span></li>
+            <li><span class="about__mark-key" data-i18n="about.marks.2.key">Cara belajar</span><span class="about__mark-val" data-i18n="about.marks.2.val">Coba &rarr; ubah &rarr; ulangi</span></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ 03 · KEAHLIAN ═══════════════════════════════════════════ -->
+  <section class="section skills" id="keahlian" data-index="03" data-i18n-attr="data-section:sections.keahlian">
+    <div class="container">
+      <header class="section-head">
+        <p class="eyebrow" data-reveal data-i18n="skills.eyebrow">03 &mdash; Keahlian</p>
+        <h2 class="section-title" data-reveal data-i18n="skills.title">Keahlian &amp; minat.</h2>
+        <p class="section-note" data-reveal data-i18n="skills.note">
+          Tiga bidang yang sedang saya kerjakan.
+        </p>
+      </header>
+
+      <div class="skills__grid">
+        <article class="skill-group skill-group--a" data-reveal>
+          <p class="skill-group__num">A</p>
+          <h3 class="skill-group__title" data-i18n="skills.groups.0.title">Hospitality</h3>
+          <p class="skill-group__note" data-i18n="skills.groups.0.note">Dari praktik lapangan di sekolah.</p>
+          <ul class="tag-list">
+            <li><span class="tag" data-cursor="link" tabindex="0" role="button" data-i18n="skills.groups.0.tags.0">Housekeeping</span></li>
+            <li><span class="tag" data-cursor="link" tabindex="0" role="button" data-i18n="skills.groups.0.tags.1">Hotel Operations</span></li>
+            <li><span class="tag" data-cursor="link" tabindex="0" role="button" data-i18n="skills.groups.0.tags.2">Hospitality Basics</span></li>
+            <li><span class="tag" data-cursor="link" tabindex="0" role="button" data-i18n="skills.groups.0.tags.3">Guest Service</span></li>
+          </ul>
+        </article>
+
+        <article class="skill-group skill-group--b" data-reveal>
+          <p class="skill-group__num">B</p>
+          <h3 class="skill-group__title" data-i18n="skills.groups.1.title">Teknologi</h3>
+          <p class="skill-group__note" data-i18n="skills.groups.1.note">Yang saya pelajari dengan bantuan AI, di luar kurikulum.</p>
+          <ul class="tag-list">
+            <li><span class="tag" data-cursor="link" tabindex="0" role="button" data-i18n="skills.groups.1.tags.0">Web Development</span></li>
+            <li><span class="tag" data-cursor="link" tabindex="0" role="button" data-i18n="skills.groups.1.tags.1">HTML</span></li>
+            <li><span class="tag" data-cursor="link" tabindex="0" role="button" data-i18n="skills.groups.1.tags.2">CSS</span></li>
+            <li><span class="tag" data-cursor="link" tabindex="0" role="button" data-i18n="skills.groups.1.tags.3">JavaScript</span></li>
+            <li><span class="tag" data-cursor="link" tabindex="0" role="button" data-i18n="skills.groups.1.tags.4">Responsive Design</span></li>
+          </ul>
+        </article>
+
+        <article class="skill-group skill-group--c" data-reveal>
+          <p class="skill-group__num">C</p>
+          <h3 class="skill-group__title" data-i18n="skills.groups.2.title">Kreatif</h3>
+          <p class="skill-group__note" data-i18n="skills.groups.2.note">Untuk apa pun, selama masih perlu dibaca dan dilihat orang.</p>
+          <ul class="tag-list">
+            <li><span class="tag" data-cursor="link" tabindex="0" role="button" data-i18n="skills.groups.2.tags.0">UI Design</span></li>
+            <li><span class="tag" data-cursor="link" tabindex="0" role="button" data-i18n="skills.groups.2.tags.1">Web Design</span></li>
+            <li><span class="tag" data-cursor="link" tabindex="0" role="button" data-i18n="skills.groups.2.tags.2">Motion Design</span></li>
+            <li><span class="tag" data-cursor="link" tabindex="0" role="button" data-i18n="skills.groups.2.tags.3">Visual Design</span></li>
+            <li><span class="tag" data-cursor="link" tabindex="0" role="button" data-i18n="skills.groups.2.tags.4">Chrome</span></li>
+          </ul>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ 04 · PROYEK ═════════════════════════════════════════════ -->
+  <section class="section projects" id="proyek" data-index="04" data-i18n-attr="data-section:sections.proyek">
+    <div class="container">
+      <header class="section-head section-head--split">
+        <div>
+          <p class="eyebrow" data-reveal data-i18n="projects.eyebrow">04 &mdash; Proyek</p>
+          <h2 class="section-title" data-reveal data-i18n="projects.title">Proyek terpilih.</h2>
+        </div>
+        <p class="section-note" data-reveal data-i18n="projects.note">
+          Masih tahap konsep. Saya taruh di sini sebagai arah kerja, bukan sebagai karya jadi.
+        </p>
+      </header>
+
+      <ol class="projects__list" id="projects-list"><!-- diisi oleh components/projects.js --></ol>
+    </div>
+  </section>
+
+  <!-- ═══ 05 · SERTIFIKAT ════════════════════════════════════════ -->
+  <section class="section certificates" id="sertifikat" data-index="05" data-i18n-attr="data-section:sections.sertifikat">
+    <div class="container">
+      <!-- `section-head` polos, bukan `--split`. Varian split memesan
+           kolom 1-7 untuk judul dan 9-12 untuk catatan; tanpa catatannya,
+           lima kolom kanan jadi lubang kosong yang tidak menjelaskan apa
+           apa. Judulnya sudah dibatasi `max-width: 18ch`, jadi tidak
+           melar sendiri. Sama seperti section Perjalanan. -->
+      <header class="section-head">
+        <p class="eyebrow" data-reveal data-i18n="certificates.eyebrow">05 &mdash; Sertifikat</p>
+        <h2 class="section-title" data-reveal data-i18n="certificates.title">Sertifikat.</h2>
+      </header>
+
+      <ol class="certs" id="certificates-list"><!-- diisi oleh components/certificates.js --></ol>
+    </div>
+  </section>
+
+  <!-- ═══ 05b · LIGHTBOX SERTIFIKAT ════════════════════════════════
+       Dialog-nya ditulis di HTML, bukan dibuat JS, supaya ada bersama
+       isi dokumen: `showModal()`/`close()` dari `components/lightbox.js`
+       hanya menyalakan dan mematikan, tidak merakit apa pun.
+
+       `aria-labelledby` menunjuk ke judul di dalam dialog, jadi pembaca
+       layar mengumumkan "IBM SkillsBuild, dialog" dan bukan sekadar
+       "dialog". Tombol tutup pertama dalam DOM supaya fokus awal mendarat
+       di sana — lebih predictable daripada mendarat di gambar. -->
+  <dialog class="lightbox" id="cert-lightbox" aria-labelledby="lightbox-title">
+    <div class="lightbox__figure">
+      <img class="lightbox__img" id="lightbox-img" alt="" width="1200" height="742" />
+      <div class="lightbox__caption">
+        <p class="lightbox__meta" id="lightbox-meta"></p>
+        <h3 class="lightbox__title" id="lightbox-title"></h3>
+      </div>
+      <button class="lightbox__close" type="button" data-lightbox-close data-cursor="link" aria-label="Tutup">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" aria-hidden="true">
+          <path d="M4 4l8 8M12 4l-8 8" />
+        </svg>
+      </button>
+    </div>
+  </dialog>
+
+  <!-- ═══ 06 · PERJALANAN ══════════════════════════════════════════ -->
+  <section class="section journey" id="perjalanan" data-index="06" data-i18n-attr="data-section:sections.perjalanan">
+    <div class="container">
+      <header class="section-head">
+        <p class="eyebrow" data-reveal data-i18n="journey.eyebrow">06 &mdash; Perjalanan</p>
+        <h2 class="section-title" data-reveal data-i18n="journey.title">Perjalanan.</h2>
+      </header>
+
+      <div class="journey__grid">
+        <div class="journey__aside-wrap">
+          <p class="journey__aside" data-reveal data-i18n="journey.aside">
+            Semuanya bergerak lebih cepat dari yang saya perkirakan, dan tidak selalu terduga.
+          </p>
+        </div>
+
+        <ol class="timeline" id="timeline"><!-- diisi oleh components/timeline.js --></ol>
+      </div>
+    </div>
+  </section>
+</main>
+
+<!-- ═══ 06 · FOOTER ═══════════════════════════════════════════════ -->
+<footer class="footer">
+  <div class="container">
+    <div class="footer__top">
+      <p class="footer__name">Firmansyah</p>
+      <p class="footer__sub" data-i18n="footer.sub">SMK Wikrama Bogor &middot; Perhotelan &middot; Kelas 11</p>
+    </div>
+
+    <div class="footer__bottom">
+      <p class="footer__copy" data-i18n="footer.copy">&copy; 2026 Firmansyah</p>
+      <a class="footer__to-top" href="#hero" data-cursor="link" data-i18n="footer.toTop">Kembali ke atas</a>
+    </div>
+  </div>
+</footer>
+
+<script type="module" src="src/scripts/main.js"></script>
+</body>
+</html>

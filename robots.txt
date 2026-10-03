@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://firmansyahaljaelani.vercel.app/sitemap.xml
