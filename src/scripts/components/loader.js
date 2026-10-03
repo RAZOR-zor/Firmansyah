@@ -492,7 +492,7 @@ export function playLoader() {
       // tersembunyi di balik baris dari frame pertama: tidak ada
       // kedipan kata utuh sebelum mulai terangkat.
       //
-      // Stagger 0,038 untuk sebelas huruf = 0,42 detik kaskade. Angka
+      // Stagger 0,038 untuk sepuluh huruf = 0,34 detik kaskade. Angka
       // itu yang bikin gerakannya terbaca sebagai "huruf diset satu per
       // satu"; di bawah ~0,03 seluruh kata bergerak hampir bersamaan dan
       // gesturnya hilang, jadi yang tersisa cuma satu fade panjang.
