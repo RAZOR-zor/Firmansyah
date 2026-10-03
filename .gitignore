@@ -20,3 +20,10 @@ sertifikat/
 --selector
 background/
 font/Pally-Bold.otf
+
+# `package.json` ikut dikeluarkan dari repo. Berkas ini hanya untuk
+# `npm start` lokal, dan sudah dikecualikan di `.vercelignore` juga, jadi
+# Vercel tidak pernah melihatnya. Tanpa itu Vercel mendeteksi proyek ini
+# sebagai aplikasi Node dan build-nya gagal - tidak ada folder `api/`,
+# tidak ada field `main`, tidak ada handler server.
+package.json
