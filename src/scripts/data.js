@@ -132,6 +132,18 @@ export const certificates = [
     width: 1200,
     height: 848,
   },
+  {
+    key: 'wadhwani-speaking-listening',
+    src: 'assets/certificates/wadhwani-speaking-listening-en-us.jpg',
+    width: 1200,
+    height: 850,
+  },
+  {
+    key: 'wadhwani-writing',
+    src: 'assets/certificates/wadhwani-writing-en-us.jpg',
+    width: 1200,
+    height: 850,
+  },
 ];
 
 /* Kontak SENGAJA dikosongkan.
@@ -349,6 +361,25 @@ export const text = {
           // "Completion date: 23 Jul 2026 (GMT)", dan angka itu dipakai
           // apa adanya. Perbedaan perlakuan itu disengaja.
           alt: 'Sertifikat penyelesaian Code.org Pre Express 2025, atas nama Firmansyah Al jaelani, ditandatangani Hadi Partovi.',
+        },
+        'wadhwani-speaking-listening': {
+          issuer: 'Wadhwani Foundation',
+          title: 'Effective Speaking and Listening Skills (US English)',
+          meta: '75 jam pelatihan, kelas dan daring',
+          date: '5 Okt 2026',
+          alt: 'Sertifikat penyelesaian Wadhwani Foundation untuk pelatihan Effective Speaking and Listening Skills (US English), atas nama Firmansyah Al Jaelani dari SMK Wikrama, 75 jam pelatihan pada 5 Oktober 2026.',
+        },
+        'wadhwani-writing': {
+          issuer: 'Wadhwani Foundation',
+          title: 'Effective Writing Skills (US English)',
+          meta: '75 jam pelatihan, kelas dan daring',
+          date: '5 Okt 2026',
+          // Sertifikat aslinya mencetak "Impactive Writing Skills".
+          // Kemungkinan besar salah ketik penerbit untuk "Effective" —
+          // satu-satunya salah ketik yang disengaja untuk dibetulkan
+          // di sini. Kalau ternyata memang istilah resmi, cukup
+          // ganti satu kata di `title` dan `alt`.
+          alt: 'Sertifikat penyelesaian Wadhwani Foundation untuk pelatihan Effective Writing Skills (US English), atas nama Firmansyah Al Jaelani dari SMK Wikrama, 75 jam pelatihan pada 5 Oktober 2026.',
         },
       },
     },
@@ -568,6 +599,20 @@ export const text = {
           title: 'Pre Express 2025',
           meta: 'Two-year program, computer science concepts',
           alt: 'Code.org Pre Express 2025 completion certificate, awarded to Firmansyah Al jaelani, signed by Hadi Partovi.',
+        },
+        'wadhwani-speaking-listening': {
+          issuer: 'Wadhwani Foundation',
+          title: 'Effective Speaking and Listening Skills (US English)',
+          meta: '75 hours of training, in-class and online',
+          date: '5 Oct 2026',
+          alt: 'Wadhwani Foundation certificate for the Effective Speaking and Listening Skills (US English) training, awarded to Firmansyah Al Jaelani of SMK Wikrama, 75 hours of training completed on 5 October 2026.',
+        },
+        'wadhwani-writing': {
+          issuer: 'Wadhwani Foundation',
+          title: 'Effective Writing Skills (US English)',
+          meta: '75 hours of training, in-class and online',
+          date: '5 Oct 2026',
+          alt: 'Wadhwani Foundation certificate for the Effective Writing Skills (US English) training, awarded to Firmansyah Al Jaelani of SMK Wikrama, 75 hours of training completed on 5 October 2026.',
         },
       },
     },
